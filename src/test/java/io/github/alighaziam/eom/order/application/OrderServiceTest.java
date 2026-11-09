@@ -1,6 +1,5 @@
 package io.github.alighaziam.eom.order.application;
 import io.github.alighaziam.eom.catalog.*;
-import io.github.alighaziam.eom.customer.CustomerOperations;
 import io.github.alighaziam.eom.inventory.InventoryOperations;
 import io.github.alighaziam.eom.order.domain.OrderStatus;
 import org.junit.jupiter.api.Test;
@@ -12,11 +11,10 @@ class OrderServiceTest {
  @Test void placesAndConfirmsOrderThroughPublishedModuleApis(){
   UUID customer=UUID.randomUUID(),product=UUID.randomUUID(),reservation=UUID.randomUUID();
   InMemoryStore store=new InMemoryStore();
-  CustomerOperations customers=id->true;
   CatalogOperations catalog=id->Optional.of(new CatalogProduct(product,"SKU-1","Keyboard",new BigDecimal("10.00"),"EUR",true));
   InventoryOperations inventory=mock(InventoryOperations.class);
   when(inventory.reserve(product,2)).thenReturn(reservation);
-  OrderService service=new OrderService(store,customers,catalog,inventory);
+  OrderService service=new OrderService(store,id->true,catalog,inventory);
   var placed=service.place(customer,List.of(new OrderService.OrderRequestLine(product,2)));
   assertEquals(OrderStatus.RESERVED,placed.status());
   assertEquals(new BigDecimal("20.00"),placed.totalAmount());
@@ -38,10 +36,12 @@ class OrderServiceTest {
   verify(inventory,times(1)).release(reservation);
  }
  @Test void rejectsMixedCurrencyAndDuplicateProductLinesBeforePersisting(){
-  UUID first=UUID.randomUUID(),second=UUID.randomUUID();
+  UUID first=UUID.randomUUID(),second=UUID.randomUUID(),reservation=UUID.randomUUID();
   InMemoryStore store=new InMemoryStore();
+  InventoryOperations inventory=mock(InventoryOperations.class);
+  when(inventory.reserve(first,1)).thenReturn(reservation);
   CatalogOperations catalog=id->Optional.of(new CatalogProduct(id,"SKU","Product",BigDecimal.ONE,id.equals(first)?"EUR":"USD",true));
-  OrderService service=new OrderService(store,id->true,catalog,mock(InventoryOperations.class));
+  OrderService service=new OrderService(store,id->true,catalog,inventory);
   assertThrows(OrderConflictException.class,()->service.place(UUID.randomUUID(),List.of(new OrderService.OrderRequestLine(first,1),new OrderService.OrderRequestLine(second,1))));
   assertThrows(OrderConflictException.class,()->service.place(UUID.randomUUID(),List.of(new OrderService.OrderRequestLine(first,1),new OrderService.OrderRequestLine(first,2))));
   assertTrue(store.orders.isEmpty());
