@@ -1,0 +1,8 @@
+package io.github.alighaziam.eom.checkout.infrastructure;
+import io.github.alighaziam.eom.checkout.*;import jakarta.persistence.*;import java.time.Instant;import java.util.UUID;
+@Entity @Table(name="workflows",schema="checkout") public class CheckoutWorkflowEntity {
+ @Id private UUID id;@Column(name="order_id",nullable=false)private UUID orderId;@Column(name="payment_id")private UUID paymentId;@Column(name="shipment_id")private UUID shipmentId;@Enumerated(EnumType.STRING)@Column(nullable=false,length=32)private CheckoutStatus status;@Column(name="idempotency_key",nullable=false,unique=true,length=120)private String idempotencyKey;@Column(name="last_error",length=1000)private String lastError;@Column(name="created_at",nullable=false)private Instant createdAt;@Column(name="updated_at",nullable=false)private Instant updatedAt;
+ protected CheckoutWorkflowEntity(){}public CheckoutWorkflowEntity(UUID id,UUID order,String key,Instant now){this.id=id;orderId=order;idempotencyKey=key;status=CheckoutStatus.ORDER_RESERVED;createdAt=now;updatedAt=now;}
+ public void payment(UUID id,CheckoutStatus s,Instant now){paymentId=id;status=s;updatedAt=now;}public void shipment(UUID id,Instant now){shipmentId=id;status=CheckoutStatus.COMPLETED;updatedAt=now;}public void status(CheckoutStatus s,String error,Instant now){status=s;lastError=error==null?null:error.substring(0,Math.min(1000,error.length()));updatedAt=now;}
+ public CheckoutOperations.CheckoutResult toResult(){return new CheckoutOperations.CheckoutResult(id,orderId,paymentId,shipmentId,status,lastError);}public UUID getId(){return id;}
+}

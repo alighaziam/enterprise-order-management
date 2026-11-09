@@ -1,0 +1,5 @@
+package io.github.alighaziam.eom.outbox;
+import io.github.alighaziam.eom.outbox.application.InboxService;import io.github.alighaziam.eom.outbox.infrastructure.*;import org.junit.jupiter.api.Test;import java.util.UUID;import static org.junit.jupiter.api.Assertions.*;import static org.mockito.Mockito.*;
+class InboxServiceTest {
+ @Test void processesAnEventOnlyOncePerConsumer(){InboxRepository repository=mock(InboxRepository.class);UUID event=UUID.randomUUID();when(repository.existsById("orders:"+event)).thenReturn(false,true);InboxService service=new InboxService(repository);Runnable handler=mock(Runnable.class);assertTrue(service.processOnce(event,"orders",handler));assertFalse(service.processOnce(event,"orders",handler));verify(handler,times(1)).run();verify(repository,times(1)).saveAndFlush(any(InboxEntity.class));}
+}

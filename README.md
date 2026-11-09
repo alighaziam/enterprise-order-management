@@ -1,152 +1,115 @@
 # Enterprise Order Management
 
-A portfolio-grade enterprise order management system built as a **modular monolith** using Java 25, Spring Boot, Spring Modulith, PostgreSQL, and Flyway.
+A portfolio-grade enterprise order management system built as a modular monolith using Java 25, Spring Boot 4.1.2, Spring Modulith 2.1.2, PostgreSQL 17, and Flyway.
 
-## Architecture
+## Architecture and module ownership
 
-The application is one deployable system with explicit business capability boundaries. Each module owns its domain model and persistence. Cross-module collaboration uses published module APIs or domain events—not another module's repositories or tables.
+Each module owns its domain and persistence. Cross-module collaboration uses published root-package APIs; no module reads another module's repositories or tables.
 
-| Module | Responsibility | Current scope |
+| Module | Responsibility | Implemented capability |
 |---|---|---|
-| customer | Customer profiles | Create and retrieve customers; published existence query |
-| catalog | Product information and pricing | Create and retrieve products; published active-product query |
-| inventory | Stock availability and reservations | Initialize, reserve, release, and confirm stock |
-| order | Order lifecycle and orchestration | Place, retrieve, confirm, and cancel orders |
-| payment | Payment lifecycle and provider integration | Boundary and lifecycle designed; implementation pending |
-| shipping | Shipment lifecycle and carrier integration | Boundary and lifecycle designed; implementation pending |
+| customer | Customer profiles | Create/retrieve customers |
+| catalog | Product information and pricing | Product CRUD and active-product query |
+| inventory | Stock and reservations | Atomic stock reservation, release, confirmation |
+| order | Purchase lifecycle | Order snapshots and reserve/confirm/cancel |
+| payment | Payment lifecycle | Authorization, capture, void, refund; sandbox adapter |
+| shipping | Fulfillment lifecycle | Immutable destination snapshot, shipment status transitions |
+| outbox | Reliable event handoff | Transactional outbox, polling relay, inbox deduplication |
+| checkout | Process orchestration | Persisted checkout workflow and compensation |
 
-## Order lifecycle and consistency
+## Order and checkout consistency
 
-Orders use three states: **RESERVED**, **CONFIRMED**, and **CANCELLED**. Placing an order validates the customer and active products, checks a single currency per order, snapshots SKU/name/price, and creates an inventory reservation for every line. The order stores each reservation ID so later operations target the exact reserved quantity.
+A normal order placement reserves inventory and writes order state in one PostgreSQL transaction. Confirming an order consumes all reservations; cancelling releases them. Repeated confirm/cancel operations are idempotent and order transitions are locked.
 
-Confirming an order confirms every reservation and consumes stock. Cancelling a reserved order releases every reservation. Repeated confirmation or cancellation is idempotent; invalid state transitions are rejected. Order transitions use a pessimistic row lock. Order persistence and inventory operations participate in the same PostgreSQL transaction in this modular-monolith deployment, so a failed line operation rolls back the complete use case rather than leaving partial stock changes.
+The checkout orchestration persists a workflow checkpoint at each step:
 
-This local transaction boundary is intentional for the current deployment. If Inventory or Order is later extracted into a separate service/database, this orchestration must be redesigned as a durable saga with an outbox, retries, compensation, and idempotent message handling. A local Spring transaction must not be mistaken for a distributed transaction.
+1. Place order and reserve stock.
+2. Authorize payment using a stable idempotency key.
+3. Capture payment.
+4. Confirm the order and consume reserved stock.
+5. Create shipment from a delivery-address snapshot.
 
-## Target payment and fulfillment workflow
+If authorization/capture fails, the workflow voids an authorization when possible and releases the reservation. If order confirmation fails after capture, it attempts a refund and reservation release. If shipment creation fails after payment and stock commit, the workflow remains FULFILLMENT_PENDING; it does not silently undo completed financial/inventory actions. Failed compensations are recorded as COMPENSATION_REQUIRED for operator reconciliation.
 
-The intended business flow is **order reservation → payment authorization → payment capture → inventory confirmation → shipment creation → shipment dispatch/delivery**. This is a target workflow, not a claim that payment or shipping is already implemented.
+The initial payment adapter is deterministic and sandbox-only. It does not connect to a bank, PSP, card network, or real money. It does not collect or store card PAN/CVV. The shipment carrier reference is also a local sandbox placeholder; no carrier API is called.
 
-- Payment owns payment intents, provider references, idempotency keys, and payment state. The planned states are REQUESTED, AUTHORIZED, CAPTURED, FAILED, and REFUNDED. Authorization and capture are separate operations.
-- Shipping owns shipment records, immutable delivery-address snapshots, carrier references, and shipment state. A shipment is created only after the order has reached the agreed paid/confirmed milestone.
-- Order owns the overall purchase lifecycle and coordinates the workflow; it does not own payment-provider or carrier persistence.
-- Payment and shipping expose published module APIs and emit business events. Other modules must not access their repositories or tables.
-- A sandbox/fake payment gateway is the only initial adapter. No real money movement or external carrier integration is enabled by this design.
+## Transactional outbox and inbox
 
-### Saga and compensation policy
+Business changes and outgoing event rows are saved in the same local database transaction. The scheduled relay polls bounded batches and publishes versioned IntegrationEvent objects to Spring's in-process event publisher. Successful publication marks the row delivered; failed attempts are counted and retained for retry. Rows reaching 12 failed attempts remain visible for manual inspection. No external broker is configured.
 
-The future orchestrator will persist a workflow instance and advance it from durable events/commands. Every step must be idempotent and correlate to a stable order/workflow ID.
+The envelope carries event ID, type, schema version, occurrence time, aggregate identity/version, correlation/causation IDs, and payload. Delivery is at-least-once: a crash after publication but before commit can cause a duplicate. Consumers should use InboxService.processOnce so the business handler and deduplication marker commit in one transaction. The inbox primary key is consumer plus event ID.
 
-| Failure point | Required compensation |
-|---|---|
-| Payment authorization fails | Release inventory reservation; mark workflow/order failed or cancelled |
-| Payment capture fails after authorization | Void authorization where supported; release reservation |
-| Inventory confirmation fails after capture | Retry safely; if terminal, refund captured payment and release/resolve reservation |
-| Shipment creation fails after payment and inventory commit | Retry shipment creation; do not silently reverse a fulfilled financial/stock step |
-| Shipment dispatch/delivery fails | Keep shipment in an operational exception state; handle return/refund as a separate business process |
+This relay is a single-deployment polling implementation, not a multi-node broker-grade dispatcher: it does not yet implement SKIP LOCKED/lease-based row claiming, per-aggregate ordering, backoff scheduling, metrics, or an external dead-letter queue. Those are explicit production-hardening items before running multiple application replicas or relying on the event stream for external side effects.
 
-Compensation is a new business action, not a database rollback. Refund/void outcomes must be recorded and reconciled; a timeout from a provider is an unknown outcome and must be queried/reconciled before issuing a potentially duplicate financial command.
-
-## Transactional outbox design
-
-Business state changes and their outgoing event records will be written in the same local database transaction. A separate relay will claim pending outbox rows, publish them, and mark them delivered. Delivery is **at least once**, not exactly once: consumers must deduplicate by event ID and persist their inbox/processed-message marker in the same transaction as their business effect.
-
-The event envelope will contain:
-- `eventId` (UUID), `eventType`, `schemaVersion`, `occurredAt`
-- `aggregateType`, `aggregateId`, and monotonic aggregate sequence/version
-- `correlationId`, optional `causationId`, and a bounded payload
-
-The relay must use bounded batches, retry with backoff, expose attempt/error/age metrics, and move repeatedly failing records to an operationally visible dead-letter state. Publishing and marking delivered cannot be made atomic with a generic external broker; duplicate publication is expected and handled by consumers. Ordering is guaranteed only per aggregate where the chosen relay/broker strategy explicitly enforces it.
-
-The initial implementation will use PostgreSQL polling and no Kafka dependency. A broker can be introduced when throughput, independent deployment, or operational requirements justify it.
-
-## Technology
-
-- Java 25
-- Spring Boot 4.1.2
-- Spring Modulith 2.1.2
-- PostgreSQL 17
-- Flyway
-- Maven
-
-## Run locally
-
-```bash
-docker compose up -d
-mvn spring-boot:run
-```
-
-Application: http://localhost:8080
-
-## API
+## APIs
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| POST | `/api/v1/customers` | Create customer |
-| GET | `/api/v1/customers/{id}` | Retrieve customer |
-| POST | `/api/v1/products` | Create product |
-| GET | `/api/v1/products/{id}` | Retrieve product |
-| POST | `/api/v1/inventory/stock` | Initialize stock |
-| GET | `/api/v1/inventory/{productId}` | Read stock availability |
-| POST | `/api/v1/inventory/reservations` | Create pending reservation |
-| POST | `/api/v1/inventory/reservations/{reservationId}/release` | Release reservation |
-| POST | `/api/v1/inventory/reservations/{reservationId}/confirm` | Consume reserved stock |
-| POST | `/api/v1/orders` | Place an order and reserve all line quantities |
-| GET | `/api/v1/orders/{orderId}` | Retrieve order and line snapshots |
-| POST | `/api/v1/orders/{orderId}/confirm` | Confirm order and consume reserved stock |
-| POST | `/api/v1/orders/{orderId}/cancel` | Cancel order and release reservations |
+| POST | /api/v1/customers | Create customer |
+| GET | /api/v1/customers/{id} | Retrieve customer |
+| POST | /api/v1/products | Create product |
+| GET | /api/v1/products/{id} | Retrieve product |
+| POST | /api/v1/inventory/stock | Initialize stock |
+| GET | /api/v1/inventory/{productId} | Read stock |
+| POST | /api/v1/inventory/reservations | Reserve stock |
+| POST | /api/v1/orders | Place order |
+| GET | /api/v1/orders/{orderId} | Retrieve order |
+| POST | /api/v1/orders/{orderId}/confirm | Confirm order |
+| POST | /api/v1/orders/{orderId}/cancel | Cancel order |
+| POST | /api/v1/payments | Authorize sandbox payment (idempotency key required) |
+| POST | /api/v1/payments/{id}/capture | Capture sandbox payment |
+| POST | /api/v1/payments/{id}/void | Void authorization |
+| POST | /api/v1/payments/{id}/refund | Refund captured payment |
+| GET | /api/v1/payments/{id} | Retrieve payment |
+| POST | /api/v1/shipments | Create shipment with address snapshot |
+| GET | /api/v1/shipments/{id} | Retrieve shipment |
+| POST | /api/v1/shipments/{id}/status | Advance shipment status |
+| POST | /api/v1/checkouts | Run the persisted checkout workflow |
+| GET | /api/v1/checkouts/{id} | Retrieve workflow and current status |
 
-Example order request:
+Example checkout request:
 
-```json
-{
-  "customerId": "00000000-0000-0000-0000-000000000001",
-  "lines": [
     {
-      "productId": "00000000-0000-0000-0000-000000000002",
-      "quantity": 2
+      "customerId": "00000000-0000-0000-0000-000000000001",
+      "lines": [{"productId": "00000000-0000-0000-0000-000000000002", "quantity": 2}],
+      "recipientName": "Jane Doe",
+      "addressLine1": "Main Street 1",
+      "city": "Berlin",
+      "postalCode": "10115",
+      "countryCode": "DE",
+      "phone": "+49000000000",
+      "idempotencyKey": "checkout-unique-request-001"
     }
-  ]
-}
-```
 
-A successful placement returns an order ID, status `RESERVED`, total, immutable product/price snapshots, and the reservation ID for each line.
+## Run locally
 
-## Build and test
+    docker compose up -d
+    mvn spring-boot:run
 
-```bash
-mvn clean verify
-```
+Application: http://localhost:8080
 
-GitHub Actions runs Maven verification against PostgreSQL 17. Tests cover domain transitions, module boundaries, persistence, reservation lifecycle, and order-to-inventory integration.
+Run verification:
 
-## Design rules
+    mvn clean verify
 
-1. A module owns its entities, repositories, and schema.
-2. No cross-module repository or table access.
-3. Cross-module calls use only published root-package interfaces or documented events.
-4. Store product and price snapshots on the order; do not recalculate historical orders from the current catalog.
-5. Use local ACID transactions only while modules share the same database and process.
-6. Before service extraction, use a durable saga/outbox, retries, compensation, idempotent consumers, and reconciliation.
-7. Extract a microservice only when independent deployment, scaling, or ownership justifies its operational cost.
-8. Never treat a provider timeout as proof that a payment command failed; reconcile unknown outcomes.
+GitHub Actions runs Maven verification against PostgreSQL 17.
 
 ## Architecture decisions
 
-- [ADR-0001: Payment, Shipping, Outbox, and Saga boundaries](docs/architecture/ADR-0001-payment-shipping-outbox-saga.md)
+- ADR-0001: docs/architecture/ADR-0001-payment-shipping-outbox-saga.md
 
 ## Status
 
-- [x] Repository bootstrap, PostgreSQL Compose, and Spring Boot skeleton
-- [x] Customer API, persistence, uniqueness, and tests
-- [x] Catalog API, persistence, uniqueness, and tests
-- [x] Inventory stock API and durable reservation lifecycle
-- [x] Order module with published module APIs, immutable line snapshots, and lifecycle
-- [x] Order reserve/confirm/cancel orchestration and integration tests
-- [x] Flyway migrations and Spring Modulith boundary verification
+- [x] Repository bootstrap, Spring Boot skeleton, PostgreSQL Compose
+- [x] Customer and Catalog modules with persistence and tests
+- [x] Inventory reservation lifecycle and tests
+- [x] Order lifecycle, snapshots, orchestration, and integration tests
+- [x] Payment module with idempotent sandbox authorization, capture, void, refund
+- [x] Shipping module with address snapshots and guarded state transitions
+- [x] Transactional outbox, scheduled relay, event envelope, inbox deduplication helper
+- [x] Persisted checkout workflow with compensation paths
+- [x] Flyway schema and Spring Modulith boundary verification
 - [x] PostgreSQL-backed integration tests and GitHub Actions verification
-- [x] Payment/shipping ownership, target lifecycle, compensation, and outbox architecture documented
-- [ ] Transactional outbox persistence, relay, and consumer idempotency
-- [ ] Payment module with idempotent sandbox gateway
-- [ ] Shipping module and fulfillment lifecycle
-- [ ] Durable saga orchestration, retries, and reconciliation
+- [ ] Production-grade relay leasing/SKIP LOCKED, exponential retry scheduling, metrics, and broker adapter
+- [ ] Real payment provider and carrier integrations (require separate credentials, security review, and approval)
+- [ ] Automated recovery worker for FULFILLMENT_PENDING and COMPENSATION_REQUIRED

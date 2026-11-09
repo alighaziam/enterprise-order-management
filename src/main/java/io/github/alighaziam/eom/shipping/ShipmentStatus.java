@@ -1,0 +1,2 @@
+package io.github.alighaziam.eom.shipping;
+public enum ShipmentStatus { PENDING,LABEL_CREATED,READY_FOR_DISPATCH,DISPATCHED,IN_TRANSIT,DELIVERED,DELIVERY_FAILED,RETURNED,CANCELLED }

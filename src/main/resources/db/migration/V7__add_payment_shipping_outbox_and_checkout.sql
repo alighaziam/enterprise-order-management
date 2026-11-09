@@ -1,0 +1,14 @@
+CREATE SCHEMA IF NOT EXISTS payment;
+CREATE SCHEMA IF NOT EXISTS shipping;
+CREATE SCHEMA IF NOT EXISTS messaging;
+CREATE SCHEMA IF NOT EXISTS checkout;
+CREATE TABLE payment.payment_intents (id UUID PRIMARY KEY,order_id UUID NOT NULL,amount NUMERIC(19,4) NOT NULL,currency VARCHAR(3) NOT NULL,status VARCHAR(24) NOT NULL,idempotency_key VARCHAR(120) NOT NULL UNIQUE,provider_reference VARCHAR(120),failure_reason VARCHAR(500),created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL,CHECK(amount>0),CHECK(status IN ('AUTHORIZED','CAPTURED','FAILED','VOIDED','REFUND_PENDING','REFUNDED')));
+CREATE INDEX ix_payment_order ON payment.payment_intents(order_id,created_at DESC);
+CREATE TABLE shipping.shipments (id UUID PRIMARY KEY,order_id UUID NOT NULL UNIQUE,status VARCHAR(32) NOT NULL,recipient_name VARCHAR(180) NOT NULL,address_line1 VARCHAR(240) NOT NULL,address_line2 VARCHAR(240),city VARCHAR(120) NOT NULL,postal_code VARCHAR(40),country_code VARCHAR(2) NOT NULL,phone VARCHAR(40),carrier_reference VARCHAR(120),created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL,CHECK(status IN ('PENDING','LABEL_CREATED','READY_FOR_DISPATCH','DISPATCHED','IN_TRANSIT','DELIVERED','DELIVERY_FAILED','RETURNED','CANCELLED')));
+CREATE INDEX ix_shipments_status_created ON shipping.shipments(status,created_at);
+CREATE TABLE messaging.outbox_events (event_id UUID PRIMARY KEY,event_type VARCHAR(160) NOT NULL,schema_version INTEGER NOT NULL,occurred_at TIMESTAMPTZ NOT NULL,aggregate_type VARCHAR(120) NOT NULL,aggregate_id VARCHAR(120) NOT NULL,aggregate_version BIGINT NOT NULL,correlation_id VARCHAR(120) NOT NULL,causation_id VARCHAR(120),payload TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL,published_at TIMESTAMPTZ,attempts INTEGER NOT NULL DEFAULT 0,last_error VARCHAR(1000),CHECK(schema_version>0),CHECK(attempts>=0));
+CREATE INDEX ix_outbox_pending ON messaging.outbox_events(created_at) WHERE published_at IS NULL;
+CREATE TABLE messaging.inbox_messages (id VARCHAR(240) PRIMARY KEY,event_id UUID NOT NULL,consumer_name VARCHAR(120) NOT NULL,processed_at TIMESTAMPTZ NOT NULL);
+CREATE INDEX ix_inbox_event ON messaging.inbox_messages(event_id);
+CREATE TABLE checkout.workflows (id UUID PRIMARY KEY,order_id UUID NOT NULL,payment_id UUID,shipment_id UUID,status VARCHAR(32) NOT NULL,idempotency_key VARCHAR(120) NOT NULL UNIQUE,last_error VARCHAR(1000),created_at TIMESTAMPTZ NOT NULL,updated_at TIMESTAMPTZ NOT NULL,CHECK(status IN ('ORDER_RESERVED','PAYMENT_AUTHORIZED','PAYMENT_CAPTURED','ORDER_CONFIRMED','FULFILLMENT_PENDING','COMPLETED','FAILED','COMPENSATION_REQUIRED')));
+CREATE INDEX ix_checkout_order ON checkout.workflows(order_id,created_at DESC);

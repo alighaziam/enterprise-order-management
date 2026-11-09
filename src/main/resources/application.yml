@@ -11,5 +11,8 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+app:
+  outbox:
+    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
 server:
   port: 8080
