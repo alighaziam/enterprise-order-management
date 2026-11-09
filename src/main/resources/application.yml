@@ -14,5 +14,7 @@ spring:
 app:
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+  checkout:
+    recovery-poll-ms: ${CHECKOUT_RECOVERY_POLL_MS:5000}
 server:
   port: 8080

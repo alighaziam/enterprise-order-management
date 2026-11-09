@@ -21,7 +21,7 @@ Each module owns its domain and persistence. Cross-module collaboration uses pub
 
 A normal order placement reserves inventory and writes order state in one PostgreSQL transaction. Confirming an order consumes all reservations; cancelling releases them. Repeated confirm/cancel operations are idempotent and order transitions are locked.
 
-The checkout orchestration persists a workflow checkpoint at each step:
+The checkout orchestration persists a workflow checkpoint and immutable delivery-address snapshot at each step:
 
 1. Place order and reserve stock.
 2. Authorize payment using a stable idempotency key.
@@ -29,7 +29,7 @@ The checkout orchestration persists a workflow checkpoint at each step:
 4. Confirm the order and consume reserved stock.
 5. Create shipment from a delivery-address snapshot.
 
-If authorization/capture fails, the workflow voids an authorization when possible and releases the reservation. If order confirmation fails after capture, it attempts a refund and reservation release. If shipment creation fails after payment and stock commit, the workflow remains FULFILLMENT_PENDING; it does not silently undo completed financial/inventory actions. Failed compensations are recorded as COMPENSATION_REQUIRED for operator reconciliation.
+If authorization/capture fails, the workflow voids an authorization when possible and releases the reservation. If order confirmation fails after capture, it attempts a refund and reservation release. If shipment creation fails after payment and stock commit, the workflow remains FULFILLMENT_PENDING; it does not silently undo completed financial/inventory actions. Failed compensations are recorded as COMPENSATION_REQUIRED for operator reconciliation. Shipment-creation failures retain the address snapshot and are retried by a scheduled worker with capped exponential delay; shipment creation is idempotent by order ID.
 
 The initial payment adapter is deterministic and sandbox-only. It does not connect to a bank, PSP, card network, or real money. It does not collect or store card PAN/CVV. The shipment carrier reference is also a local sandbox placeholder; no carrier API is called.
 
@@ -112,4 +112,5 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] PostgreSQL-backed integration tests and GitHub Actions verification
 - [ ] Production-grade relay leasing/SKIP LOCKED, exponential retry scheduling, metrics, and broker adapter
 - [ ] Real payment provider and carrier integrations (require separate credentials, security review, and approval)
-- [ ] Automated recovery worker for FULFILLMENT_PENDING and COMPENSATION_REQUIRED
+- [x] Scheduled fulfillment recovery for FULFILLMENT_PENDING using persisted address snapshots and exponential retry delay
+- [ ] Operator reconciliation workflow for COMPENSATION_REQUIRED (requires provider-side outcome verification)
