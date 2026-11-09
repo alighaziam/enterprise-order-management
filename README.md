@@ -14,7 +14,7 @@ Each module owns its domain and persistence. Cross-module collaboration uses pub
 | order | Purchase lifecycle | Order snapshots and reserve/confirm/cancel |
 | payment | Payment lifecycle | Authorization, capture, void, refund; sandbox adapter |
 | shipping | Fulfillment lifecycle | Immutable destination snapshot, shipment status transitions |
-| outbox | Reliable event handoff | Transactional outbox, polling relay, inbox deduplication |
+| outbox | Reliable event handoff | Transactional outbox, leased polling relay, retry backoff, dead-letter state, inbox deduplication |
 | checkout | Process orchestration | Persisted checkout workflow and compensation |
 
 ## Order and checkout consistency
@@ -35,11 +35,21 @@ The initial payment adapter is deterministic and sandbox-only. It does not conne
 
 ## Transactional outbox and inbox
 
-Business changes and outgoing event rows are saved in the same local database transaction. The scheduled relay polls bounded batches and publishes versioned IntegrationEvent objects to Spring's in-process event publisher. Successful publication marks the row delivered; failed attempts are counted and retained for retry. Rows reaching 12 failed attempts remain visible for manual inspection. No external broker is configured.
+Business changes and outgoing event rows are saved in the same local database transaction. The scheduled relay claims bounded batches in a short database transaction using PostgreSQL `FOR UPDATE SKIP LOCKED` and a 120-second lease. Publication happens after the claim transaction, so a slow in-process listener does not hold database row locks. A second application instance skips rows already leased by another worker.
 
-The envelope carries event ID, type, schema version, occurrence time, aggregate identity/version, correlation/causation IDs, and payload. Delivery is at-least-once: a crash after publication but before commit can cause a duplicate. Consumers should use InboxService.processOnce so the business handler and deduplication marker commit in one transaction. The inbox primary key is consumer plus event ID.
+Failed publications increment the attempt counter and are rescheduled with exponential backoff (2 seconds initially, capped at 1 hour). After 12 failed attempts, a row is marked with `dead_lettered_at` and is excluded from automatic claims for operator inspection. Expired leases make abandoned claims eligible again. Successful publication records `published_at` and clears the lease.
 
-This relay is a single-deployment polling implementation, not a multi-node broker-grade dispatcher: it does not yet implement SKIP LOCKED/lease-based row claiming, per-aggregate ordering, backoff scheduling, metrics, or an external dead-letter queue. Those are explicit production-hardening items before running multiple application replicas or relying on the event stream for external side effects.
+The envelope carries event ID, type, schema version, occurrence time, aggregate identity/version, correlation/causation IDs, and payload. Delivery remains at-least-once: a process crash after publication but before `published_at` is committed can cause a duplicate. Consumers should use InboxService.processOnce so the business handler and deduplication marker commit in one transaction. The inbox primary key is consumer plus event ID.
+
+This is a database-leased in-process relay, not a complete external messaging platform. It does not yet provide per-aggregate ordering, external broker delivery, metrics/alerting, or an operator UI for replaying dead letters. A lease expiry during a very slow publish can still result in duplicate delivery; consumers must remain idempotent.
+
+For operational inspection of dead letters:
+
+    SELECT event_id, event_type, aggregate_type, aggregate_id, attempts,
+           last_error, dead_lettered_at
+    FROM messaging.outbox_events
+    WHERE dead_lettered_at IS NOT NULL
+    ORDER BY dead_lettered_at DESC;
 
 ## APIs
 
@@ -106,11 +116,13 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Order lifecycle, snapshots, orchestration, and integration tests
 - [x] Payment module with idempotent sandbox authorization, capture, void, refund
 - [x] Shipping module with address snapshots and guarded state transitions
-- [x] Transactional outbox, scheduled relay, event envelope, inbox deduplication helper
+- [x] Transactional outbox, leased SKIP LOCKED batch claiming, exponential retry backoff, dead-letter state
+- [x] Inbox deduplication helper and at-least-once delivery documentation
+- [x] Outbox failure-injection, retry/dead-letter, and PostgreSQL lease integration tests
 - [x] Persisted checkout workflow with compensation paths
 - [x] Flyway schema and Spring Modulith boundary verification
 - [x] PostgreSQL-backed integration tests and GitHub Actions verification
-- [ ] Production-grade relay leasing/SKIP LOCKED, exponential retry scheduling, metrics, and broker adapter
+- [ ] Per-aggregate event ordering, metrics/alerting, external broker adapter, and dead-letter replay UI
 - [ ] Real payment provider and carrier integrations (require separate credentials, security review, and approval)
 - [x] Scheduled fulfillment recovery for FULFILLMENT_PENDING using persisted address snapshots and exponential retry delay
 - [ ] Operator reconciliation workflow for COMPENSATION_REQUIRED (requires provider-side outcome verification)
