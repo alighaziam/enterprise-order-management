@@ -1,6 +1,7 @@
 package io.github.alighaziam.eom.catalog.application;
 import io.github.alighaziam.eom.catalog.CatalogOperations;
 import io.github.alighaziam.eom.catalog.CatalogProduct;
+import io.github.alighaziam.eom.catalog.domain.Product;
 import org.springframework.stereotype.Component;
 import java.util.Optional;
 import java.util.UUID;
