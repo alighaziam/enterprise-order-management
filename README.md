@@ -4,20 +4,24 @@ A portfolio-grade enterprise order management system built as a **modular monoli
 
 ## Architecture
 
-The system is one deployable application with explicit business capability boundaries. Each module owns its domain model and persistence. Cross-module collaboration must happen through published module APIs or domain events—not by accessing another module's repositories or tables.
+The application is one deployable system with explicit business capability boundaries. Each module owns its domain model and persistence. Cross-module collaboration uses published module APIs or domain events—not another module's repositories or tables.
 
 | Module | Responsibility | Current scope |
 |---|---|---|
-| customer | Customer profiles and lifecycle | Create and retrieve customers; unique email |
-| catalog | Product information and pricing | Create and retrieve products; unique SKU and currency validation |
-| inventory | Stock availability and reservations | Initialize stock, read availability, reserve, release, and confirm stock |
-| order | Order lifecycle and orchestration | Planned |
-| payment | Payment authorization and capture boundary | Planned |
+| customer | Customer profiles | Create and retrieve customers; published existence query |
+| catalog | Product information and pricing | Create and retrieve products; published active-product query |
+| inventory | Stock availability and reservations | Initialize, reserve, release, and confirm stock |
+| order | Order lifecycle and orchestration | Place, retrieve, confirm, and cancel orders |
+| payment | Payment authorization and capture | Planned |
 | shipping | Shipment and delivery lifecycle | Planned |
 
-Inventory reservations are persisted in a dedicated ledger. A reservation transitions from **PENDING** to either **RELEASED** or **CONFIRMED**. Release restores available stock; confirmation consumes both on-hand and reserved quantities. Repeated release and confirmation requests are idempotent. Reservation state transitions use a database row lock, while stock changes use conditional SQL updates to preserve invariants under concurrent requests. The stock update and reservation transition share one database transaction.
+## Order lifecycle and consistency
 
-Long-running workflows will use saga-style orchestration. Reliable asynchronous event publication will use a transactional outbox where required. These patterns will be introduced with concrete use cases rather than added speculatively.
+Orders use three states: **RESERVED**, **CONFIRMED**, and **CANCELLED**. Placing an order validates the customer and active products, checks a single currency per order, snapshots SKU/name/price, and creates an inventory reservation for every line. The order stores each reservation ID so later operations target the exact reserved quantity.
+
+Confirming an order confirms every reservation and consumes stock. Cancelling a reserved order releases every reservation. Repeated confirmation or cancellation is idempotent; invalid state transitions are rejected. Order transitions use a pessimistic row lock. Order persistence and inventory operations participate in the same PostgreSQL transaction in this modular-monolith deployment, so a failed line operation rolls back the complete use case rather than leaving partial stock changes.
+
+This local transaction boundary is intentional for the current deployment. If Inventory or Order is later extracted into a separate service/database, this orchestration must be redesigned as a durable saga with an outbox, retries, compensation, and idempotent message handling. A local Spring transaction must not be mistaken for a distributed transaction.
 
 ## Technology
 
@@ -45,43 +49,31 @@ Application: http://localhost:8080
 | GET | `/api/v1/customers/{id}` | Retrieve customer |
 | POST | `/api/v1/products` | Create product |
 | GET | `/api/v1/products/{id}` | Retrieve product |
-| POST | `/api/v1/inventory/stock` | Initialize product stock |
+| POST | `/api/v1/inventory/stock` | Initialize stock |
 | GET | `/api/v1/inventory/{productId}` | Read stock availability |
-| POST | `/api/v1/inventory/reservations` | Create a pending stock reservation |
-| POST | `/api/v1/inventory/reservations/{reservationId}/release` | Release a pending reservation |
-| POST | `/api/v1/inventory/reservations/{reservationId}/confirm` | Confirm and consume a pending reservation |
+| POST | `/api/v1/inventory/reservations` | Create pending reservation |
+| POST | `/api/v1/inventory/reservations/{reservationId}/release` | Release reservation |
+| POST | `/api/v1/inventory/reservations/{reservationId}/confirm` | Consume reserved stock |
+| POST | `/api/v1/orders` | Place an order and reserve all line quantities |
+| GET | `/api/v1/orders/{orderId}` | Retrieve order and line snapshots |
+| POST | `/api/v1/orders/{orderId}/confirm` | Confirm order and consume reserved stock |
+| POST | `/api/v1/orders/{orderId}/cancel` | Cancel order and release reservations |
 
-Example customer request:
-
-```json
-{
-  "fullName": "Ada Lovelace",
-  "email": "ada@example.com"
-}
-```
-
-Example product request:
+Example order request:
 
 ```json
 {
-  "sku": "KEYBOARD-001",
-  "name": "Mechanical Keyboard",
-  "description": "Full-size mechanical keyboard",
-  "unitPrice": 89.9900,
-  "currency": "EUR"
+  "customerId": "00000000-0000-0000-0000-000000000001",
+  "lines": [
+    {
+      "productId": "00000000-0000-0000-0000-000000000002",
+      "quantity": 2
+    }
+  ]
 }
 ```
 
-Example stock reservation:
-
-```json
-{
-  "productId": "00000000-0000-0000-0000-000000000000",
-  "quantity": 2
-}
-```
-
-Reservation responses include a `reservationId` and a lifecycle status. Persist that identifier to confirm or release the exact reservation later.
+A successful placement returns an order ID, status `RESERVED`, total, immutable product/price snapshots, and the reservation ID for each line.
 
 ## Build and test
 
@@ -89,29 +81,27 @@ Reservation responses include a `reservationId` and a lifecycle status. Persist 
 mvn clean verify
 ```
 
-GitHub Actions runs Maven verification against PostgreSQL 17. The suite includes unit tests, Spring Modulith boundary verification, and PostgreSQL-backed integration tests for Flyway, JPA persistence, and customer/catalog/inventory workflows.
+GitHub Actions runs Maven verification against PostgreSQL 17. Tests cover domain transitions, module boundaries, persistence, reservation lifecycle, and order-to-inventory integration.
 
 ## Design rules
 
-1. Organize code by business module, then by technical responsibility inside that module.
-2. A module owns its entities, repositories, and schema.
-3. No cross-module repository or table access.
-4. Keep module APIs small and explicit.
-5. Use domain events for decoupled collaboration.
-6. Extract a microservice only when independent deployment, scaling, or ownership justifies its operational cost.
+1. A module owns its entities, repositories, and schema.
+2. No cross-module repository or table access.
+3. Cross-module calls use only published root-package interfaces.
+4. Store product and price snapshots on the order; do not recalculate historical orders from the current catalog.
+5. Use local ACID transactions only while modules share the same database and process.
+6. Use a durable saga/outbox before splitting this workflow across services.
+7. Extract a microservice only when independent deployment, scaling, or ownership justifies its operational cost.
 
 ## Status
 
-- [x] Repository bootstrap and PostgreSQL Compose setup
-- [x] Spring Boot application skeleton
-- [x] Customer API, persistence, duplicate handling, and tests
-- [x] Catalog API, persistence, and tests
-- [x] Inventory API, persistence, atomic stock reservation, and tests
-- [x] Durable reservation ledger with release/confirm lifecycle and idempotency
-- [x] Flyway migrations for customer, catalog, and inventory reservations
-- [x] Spring Modulith boundary verification
-- [x] PostgreSQL-backed inventory lifecycle integration tests
-- [x] GitHub Actions Maven verification workflow
-- [ ] Order lifecycle and invariants
+- [x] Repository bootstrap, PostgreSQL Compose, and Spring Boot skeleton
+- [x] Customer API, persistence, uniqueness, and tests
+- [x] Catalog API, persistence, uniqueness, and tests
+- [x] Inventory stock API and durable reservation lifecycle
+- [x] Order module with published module APIs, immutable line snapshots, and lifecycle
+- [x] Order reserve/confirm/cancel orchestration and integration tests
+- [x] Flyway migrations and Spring Modulith boundary verification
+- [x] PostgreSQL-backed integration tests and GitHub Actions verification
 - [ ] Payment and shipping integration boundaries
-- [ ] Transactional outbox and saga workflow
+- [ ] Transactional outbox and distributed saga
