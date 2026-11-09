@@ -23,7 +23,7 @@ Long-running workflows will use saga-style orchestration. Reliable asynchronous 
 
 - Java 25
 - Spring Boot 4.1.2
-- Spring Modulith 2.1.1
+- Spring Modulith 2.1.2
 - PostgreSQL 17
 - Flyway
 - Maven
@@ -73,8 +73,8 @@ Example request:
 - [x] Customer creation and retrieval API
 - [x] Customer Flyway migration
 - [x] Spring Modulith boundary verification test
+- [x] GitHub Actions Maven verification workflow
 - [ ] Catalog and inventory
 - [ ] Order lifecycle and invariants
 - [ ] Payment and shipping integration boundaries
 - [ ] Transactional outbox and saga workflow
-- [ ] CI pipeline and integration test suite
