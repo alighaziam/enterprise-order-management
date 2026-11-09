@@ -1,3 +1,8 @@
 package io.github.alighaziam.eom.order;
-import io.github.alighaziam.eom.order.domain.Order; import java.util.Collection; import java.util.UUID;
-public interface OrderOperations {Order place(UUID customerId,Collection<OrderLineRequest> lines);Order confirm(UUID id);Order cancel(UUID id);Order get(UUID id);record OrderLineRequest(UUID productId,int quantity){}}
+import java.math.BigDecimal;import java.util.Collection;import java.util.UUID;
+public interface OrderOperations {
+ OrderSummary placeForCheckout(UUID customerId,Collection<OrderLineRequest> lines);
+ OrderSummary confirmForCheckout(UUID orderId);OrderSummary cancelForCheckout(UUID orderId);
+ record OrderLineRequest(UUID productId,int quantity){}
+ record OrderSummary(UUID id,BigDecimal totalAmount,String currency){}
+}

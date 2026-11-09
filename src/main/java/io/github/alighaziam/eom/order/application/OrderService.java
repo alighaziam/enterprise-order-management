@@ -4,7 +4,7 @@ import io.github.alighaziam.eom.catalog.CatalogOperations;import io.github.aligh
  private final OrderStore store;private final CustomerOperations customers;private final CatalogOperations catalog;private final InventoryOperations inventory;
  public OrderService(OrderStore s,CustomerOperations c,CatalogOperations p,InventoryOperations i){store=s;customers=c;catalog=p;inventory=i;}
  public Order place(UUID customerId,List<OrderRequestLine> requested){return place(customerId,requested==null?null:requested.stream().map(x->new OrderOperations.OrderLineRequest(x.productId(),x.quantity())).toList());}
- @Override public Order place(UUID customerId,Collection<OrderOperations.OrderLineRequest> requested){
+ public Order place(UUID customerId,Collection<OrderOperations.OrderLineRequest> requested){
  if(customerId==null)throw new OrderConflictException("Customer ID is required.");if(requested==null||requested.isEmpty())throw new OrderConflictException("An order must contain at least one line.");if(!customers.customerExists(customerId))throw new OrderConflictException("Customer does not exist: "+customerId);
  Set<UUID> seen=new HashSet<>();List<OrderLine> lines=new ArrayList<>();String currency=null;BigDecimal total=BigDecimal.ZERO;
  for(var input:requested){if(input==null||input.productId()==null||input.quantity()<=0)throw new OrderConflictException("Each order line requires a product and a positive quantity.");if(!seen.add(input.productId()))throw new OrderConflictException("Duplicate product lines are not allowed: "+input.productId());
@@ -12,9 +12,13 @@ import io.github.alighaziam.eom.catalog.CatalogOperations;import io.github.aligh
  UUID reservation;try{reservation=inventory.reserve(p.id(),input.quantity());}catch(RuntimeException ex){throw new OrderConflictException("Unable to reserve stock for product "+p.sku()+".",ex);}
  OrderLine line=new OrderLine(UUID.randomUUID(),p.id(),p.sku(),p.name(),p.unitPrice(),p.currency(),input.quantity(),reservation);lines.add(line);total=total.add(line.subtotal());}
  Instant now=Instant.now();return store.save(new Order(UUID.randomUUID(),customerId,OrderStatus.RESERVED,currency,total,lines,now,now));}
- @Override public Order confirm(UUID id){Order o=findForUpdate(id);if(o.status()==OrderStatus.CONFIRMED)return o;if(o.status()!=OrderStatus.RESERVED)throw new OrderConflictException("Only reserved orders can be confirmed.");try{for(OrderLine l:o.lines())inventory.confirm(l.reservationId());}catch(RuntimeException ex){throw new OrderConflictException("Order confirmation failed; no partial confirmation was committed.",ex);}return store.save(o.confirm(Instant.now()));}
- @Override public Order cancel(UUID id){Order o=findForUpdate(id);if(o.status()==OrderStatus.CANCELLED)return o;if(o.status()!=OrderStatus.RESERVED)throw new OrderConflictException("Only reserved orders can be cancelled.");try{for(OrderLine l:o.lines())inventory.release(l.reservationId());}catch(RuntimeException ex){throw new OrderConflictException("Order cancellation failed; no partial release was committed.",ex);}return store.save(o.cancel(Instant.now()));}
- @Override @Transactional(readOnly=true) public Order get(UUID id){return store.findById(id).orElseThrow(()->new OrderNotFoundException(id));}
+ public Order confirm(UUID id){Order o=findForUpdate(id);if(o.status()==OrderStatus.CONFIRMED)return o;if(o.status()!=OrderStatus.RESERVED)throw new OrderConflictException("Only reserved orders can be confirmed.");try{for(OrderLine l:o.lines())inventory.confirm(l.reservationId());}catch(RuntimeException ex){throw new OrderConflictException("Order confirmation failed; no partial confirmation was committed.",ex);}return store.save(o.confirm(Instant.now()));}
+ public Order cancel(UUID id){Order o=findForUpdate(id);if(o.status()==OrderStatus.CANCELLED)return o;if(o.status()!=OrderStatus.RESERVED)throw new OrderConflictException("Only reserved orders can be cancelled.");try{for(OrderLine l:o.lines())inventory.release(l.reservationId());}catch(RuntimeException ex){throw new OrderConflictException("Order cancellation failed; no partial release was committed.",ex);}return store.save(o.cancel(Instant.now()));}
+ @Transactional(readOnly=true) public Order get(UUID id){return store.findById(id).orElseThrow(()->new OrderNotFoundException(id));}
+ public OrderSummary placeForCheckout(UUID customerId,Collection<OrderLineRequest> lines){Order o=place(customerId,lines);return summary(o);}
+ public OrderSummary confirmForCheckout(UUID id){return summary(confirm(id));}
+ public OrderSummary cancelForCheckout(UUID id){return summary(cancel(id));}
+ private OrderSummary summary(Order o){return new OrderSummary(o.id(),o.totalAmount(),o.currency());}
  private Order findForUpdate(UUID id){return store.findByIdForUpdate(id).orElseThrow(()->new OrderNotFoundException(id));}
  public record OrderRequestLine(UUID productId,int quantity){}
 }
