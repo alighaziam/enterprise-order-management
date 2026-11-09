@@ -104,9 +104,11 @@ Run verification:
 
 GitHub Actions runs Maven verification against PostgreSQL 17.
 
-## Architecture decisions
+## Architecture documentation and demo
 
-- ADR-0001: docs/architecture/ADR-0001-payment-shipping-outbox-saga.md
+- [Architecture overview](docs/architecture/OVERVIEW.md) — module boundaries, runtime topology, consistency, event delivery, and trade-offs.
+- [Architecture decision record](docs/architecture/ADR-0001-payment-shipping-outbox-saga.md) — payment, shipping, outbox, and saga decisions.
+- [Local demo runbook](docs/demo/LOCAL-DEMO.md) — reproducible end-to-end checkout walkthrough and failure scenarios.
 
 ## Status
 
