@@ -10,12 +10,12 @@ The system is one deployable application with explicit business capability bound
 |---|---|---|
 | customer | Customer profiles and lifecycle | Create and retrieve customers; unique email |
 | catalog | Product information and pricing | Create and retrieve products; unique SKU and currency validation |
-| inventory | Stock availability and reservations | Initialize stock, read availability, atomically reserve stock |
+| inventory | Stock availability and reservations | Initialize stock, read availability, reserve, release, and confirm stock |
 | order | Order lifecycle and orchestration | Planned |
 | payment | Payment authorization and capture boundary | Planned |
 | shipping | Shipment and delivery lifecycle | Planned |
 
-The inventory reservation operation uses a conditional database update so concurrent requests cannot reserve more than the available quantity. A durable reservation ledger, release/expiry flow, and order orchestration are intentionally deferred to the order lifecycle phase.
+Inventory reservations are persisted in a dedicated ledger. A reservation transitions from **PENDING** to either **RELEASED** or **CONFIRMED**. Release restores available stock; confirmation consumes both on-hand and reserved quantities. Repeated release and confirmation requests are idempotent. Reservation state transitions use a database row lock, while stock changes use conditional SQL updates to preserve invariants under concurrent requests. The stock update and reservation transition share one database transaction.
 
 Long-running workflows will use saga-style orchestration. Reliable asynchronous event publication will use a transactional outbox where required. These patterns will be introduced with concrete use cases rather than added speculatively.
 
@@ -47,7 +47,9 @@ Application: http://localhost:8080
 | GET | `/api/v1/products/{id}` | Retrieve product |
 | POST | `/api/v1/inventory/stock` | Initialize product stock |
 | GET | `/api/v1/inventory/{productId}` | Read stock availability |
-| POST | `/api/v1/inventory/reservations` | Reserve available stock |
+| POST | `/api/v1/inventory/reservations` | Create a pending stock reservation |
+| POST | `/api/v1/inventory/reservations/{reservationId}/release` | Release a pending reservation |
+| POST | `/api/v1/inventory/reservations/{reservationId}/confirm` | Confirm and consume a pending reservation |
 
 Example customer request:
 
@@ -79,17 +81,19 @@ Example stock reservation:
 }
 ```
 
+Reservation responses include a `reservationId` and a lifecycle status. Persist that identifier to confirm or release the exact reservation later.
+
 ## Build and test
 
 ```bash
 mvn clean verify
 ```
 
-GitHub Actions runs the Maven verification against PostgreSQL 17. The suite includes unit tests, Spring Modulith boundary verification, and an application integration test that exercises Flyway, JPA persistence, and the customer/catalog/inventory services.
+GitHub Actions runs Maven verification against PostgreSQL 17. The suite includes unit tests, Spring Modulith boundary verification, and PostgreSQL-backed integration tests for Flyway, JPA persistence, and customer/catalog/inventory workflows.
 
 ## Design rules
 
-1. Organize code by business module, then by technical responsibility inside each module.
+1. Organize code by business module, then by technical responsibility inside that module.
 2. A module owns its entities, repositories, and schema.
 3. No cross-module repository or table access.
 4. Keep module APIs small and explicit.
@@ -103,11 +107,11 @@ GitHub Actions runs the Maven verification against PostgreSQL 17. The suite incl
 - [x] Customer API, persistence, duplicate handling, and tests
 - [x] Catalog API, persistence, and tests
 - [x] Inventory API, persistence, atomic stock reservation, and tests
-- [x] Flyway migrations for customer, catalog, and inventory
+- [x] Durable reservation ledger with release/confirm lifecycle and idempotency
+- [x] Flyway migrations for customer, catalog, and inventory reservations
 - [x] Spring Modulith boundary verification
-- [x] PostgreSQL-backed application integration test
+- [x] PostgreSQL-backed inventory lifecycle integration tests
 - [x] GitHub Actions Maven verification workflow
-- [ ] Durable inventory reservation lifecycle
 - [ ] Order lifecycle and invariants
 - [ ] Payment and shipping integration boundaries
 - [ ] Transactional outbox and saga workflow
