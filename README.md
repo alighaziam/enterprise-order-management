@@ -6,16 +6,16 @@ A portfolio-grade enterprise order management system built as a **modular monoli
 
 The system is one deployable application with explicit business capability boundaries. Each module owns its domain model and persistence. Cross-module collaboration must happen through published module APIs or domain events—not by accessing another module's repositories or tables.
 
-Planned modules:
+| Module | Responsibility | Current scope |
+|---|---|---|
+| customer | Customer profiles and lifecycle | Create and retrieve customers; unique email |
+| catalog | Product information and pricing | Create and retrieve products; unique SKU and currency validation |
+| inventory | Stock availability and reservations | Initialize stock, read availability, atomically reserve stock |
+| order | Order lifecycle and orchestration | Planned |
+| payment | Payment authorization and capture boundary | Planned |
+| shipping | Shipment and delivery lifecycle | Planned |
 
-| Module | Responsibility |
-|---|---|
-| customer | Customer profiles and lifecycle |
-| catalog | Product information and pricing |
-| inventory | Stock availability and reservations |
-| order | Order lifecycle and orchestration |
-| payment | Payment authorization and capture boundary |
-| shipping | Shipment and delivery lifecycle |
+The inventory reservation operation uses a conditional database update so concurrent requests cannot reserve more than the available quantity. A durable reservation ledger, release/expiry flow, and order orchestration are intentionally deferred to the order lifecycle phase.
 
 Long-running workflows will use saga-style orchestration. Reliable asynchronous event publication will use a transactional outbox where required. These patterns will be introduced with concrete use cases rather than added speculatively.
 
@@ -37,18 +37,19 @@ mvn spring-boot:run
 
 Application: http://localhost:8080
 
-## Build and test
+## API
 
-```bash
-mvn clean verify
-```
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/v1/customers` | Create customer |
+| GET | `/api/v1/customers/{id}` | Retrieve customer |
+| POST | `/api/v1/products` | Create product |
+| GET | `/api/v1/products/{id}` | Retrieve product |
+| POST | `/api/v1/inventory/stock` | Initialize product stock |
+| GET | `/api/v1/inventory/{productId}` | Read stock availability |
+| POST | `/api/v1/inventory/reservations` | Reserve available stock |
 
-## First API
-
-- `POST /api/v1/customers` — create a customer
-- `GET /api/v1/customers/{id}` — retrieve a customer
-
-Example request:
+Example customer request:
 
 ```json
 {
@@ -56,6 +57,35 @@ Example request:
   "email": "ada@example.com"
 }
 ```
+
+Example product request:
+
+```json
+{
+  "sku": "KEYBOARD-001",
+  "name": "Mechanical Keyboard",
+  "description": "Full-size mechanical keyboard",
+  "unitPrice": 89.9900,
+  "currency": "EUR"
+}
+```
+
+Example stock reservation:
+
+```json
+{
+  "productId": "00000000-0000-0000-0000-000000000000",
+  "quantity": 2
+}
+```
+
+## Build and test
+
+```bash
+mvn clean verify
+```
+
+GitHub Actions runs the Maven verification against PostgreSQL 17. The suite includes unit tests, Spring Modulith boundary verification, and an application integration test that exercises Flyway, JPA persistence, and the customer/catalog/inventory services.
 
 ## Design rules
 
@@ -70,11 +100,14 @@ Example request:
 
 - [x] Repository bootstrap and PostgreSQL Compose setup
 - [x] Spring Boot application skeleton
-- [x] Customer creation and retrieval API
-- [x] Customer Flyway migration
-- [x] Spring Modulith boundary verification test
+- [x] Customer API, persistence, duplicate handling, and tests
+- [x] Catalog API, persistence, and tests
+- [x] Inventory API, persistence, atomic stock reservation, and tests
+- [x] Flyway migrations for customer, catalog, and inventory
+- [x] Spring Modulith boundary verification
+- [x] PostgreSQL-backed application integration test
 - [x] GitHub Actions Maven verification workflow
-- [ ] Catalog and inventory
+- [ ] Durable inventory reservation lifecycle
 - [ ] Order lifecycle and invariants
 - [ ] Payment and shipping integration boundaries
 - [ ] Transactional outbox and saga workflow
