@@ -16,5 +16,5 @@ import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.check
  try{var shipment=shipping.create(order.id(),r.deliveryAddress());w.shipment(shipment.id(),Instant.now());}catch(RuntimeException ex){w.scheduleFulfillmentRetry(ex.getMessage(),Instant.now());}
  workflows.saveAndFlush(w);outbox.append("Checkout"+w.toResult().status().name(),"CheckoutWorkflow",w.getId().toString(),2,w.getId().toString(),null,"{\"orderId\":\""+order.id()+"\"}");return w.toResult();
  }
- public CheckoutResult get(UUID id){return workflows.findById(id).orElseThrow(()->new IllegalArgumentException("Checkout workflow not found: "+id)).toResult();}
+ public CheckoutResult get(UUID id){return workflows.findById(id).orElseThrow(()->new CheckoutNotFoundException(id)).toResult();}
 }

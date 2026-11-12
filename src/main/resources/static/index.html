@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Enterprise Order Management</title>
+  <style>
+    :root { color-scheme: light; }
+    body { margin: 0; font-family: "Segoe UI", sans-serif; background: #f4f6f8; color: #1c2430; }
+    main { max-width: 760px; margin: 48px auto; padding: 0 20px 48px; }
+    h1 { font-size: 1.7rem; margin-bottom: 0.25rem; }
+    p { line-height: 1.5; }
+    .status { color: #0b6b3a; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e4e8ee; font-size: 0.95rem; }
+    th { background: #eef2f6; }
+    code { font-family: Consolas, monospace; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Enterprise Order Management</h1>
+  <p class="status">Application is running.</p>
+  <p>This service is an HTTP API. Open one of the resources below, or call them with a client. A browser visit to an unknown path returns 404.</p>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th></tr></thead>
+    <tbody>
+      <tr><td>POST</td><td><code>/api/v1/customers</code></td></tr>
+      <tr><td>GET</td><td><code>/api/v1/customers/{id}</code></td></tr>
+      <tr><td>POST</td><td><code>/api/v1/products</code></td></tr>
+      <tr><td>GET</td><td><code>/api/v1/products/{id}</code></td></tr>
+      <tr><td>POST</td><td><code>/api/v1/inventory/stock</code></td></tr>
+      <tr><td>GET</td><td><code>/api/v1/inventory/{productId}</code></td></tr>
+      <tr><td>POST</td><td><code>/api/v1/orders</code></td></tr>
+      <tr><td>GET</td><td><code>/api/v1/orders/{orderId}</code></td></tr>
+      <tr><td>POST</td><td><code>/api/v1/payments</code></td></tr>
+      <tr><td>GET</td><td><code>/api/v1/payments/{id}</code></td></tr>
+      <tr><td>POST</td><td><code>/api/v1/shipments</code></td></tr>
+      <tr><td>GET</td><td><code>/api/v1/shipments/{id}</code></td></tr>
+      <tr><td>POST</td><td><code>/api/v1/checkouts</code></td></tr>
+      <tr><td>GET</td><td><code>/api/v1/checkouts/{id}</code></td></tr>
+    </tbody>
+  </table>
+</main>
+</body>
+</html>
