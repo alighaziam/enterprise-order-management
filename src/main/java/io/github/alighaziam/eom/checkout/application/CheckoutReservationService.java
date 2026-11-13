@@ -9,6 +9,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 /**
@@ -36,13 +41,15 @@ public class CheckoutReservationService {
     public ReservationResult reserve(CheckoutRequest request) {
         var existing = workflows.findByIdempotencyKey(request.idempotencyKey());
         if (existing.isPresent()) {
+            validateReplay(existing.get(), request);
             return new ReservationResult(existing.get(), false, null);
         }
 
         var order = orders.placeForCheckout(request.customerId(), request.lines());
         Instant now = Instant.now();
         var workflow = workflows.saveAndFlush(new CheckoutWorkflowEntity(
-                UUID.randomUUID(), order.id(), request.idempotencyKey(), request.deliveryAddress(), now));
+                UUID.randomUUID(), order.id(), request.idempotencyKey(), fingerprint(request),
+                request.deliveryAddress(), now));
         outbox.append(
                 "CheckoutStarted",
                 "CheckoutWorkflow",
