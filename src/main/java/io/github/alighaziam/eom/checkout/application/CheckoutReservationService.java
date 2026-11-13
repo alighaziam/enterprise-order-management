@@ -36,7 +36,7 @@ public class CheckoutReservationService {
     public ReservationResult reserve(CheckoutRequest request) {
         var existing = workflows.findByIdempotencyKey(request.idempotencyKey());
         if (existing.isPresent()) {
-            return new ReservationResult(existing.get(), false);
+            return new ReservationResult(existing.get(), false, null);
         }
 
         var order = orders.placeForCheckout(request.customerId(), request.lines());
@@ -51,8 +51,9 @@ public class CheckoutReservationService {
                 workflow.getId().toString(),
                 null,
                 "{\"orderId\":\"" + order.id() + "\"}");
-        return new ReservationResult(workflow, true);
+        return new ReservationResult(workflow, true, order);
     }
 
-    public record ReservationResult(CheckoutWorkflowEntity workflow, boolean created) { }
+    public record ReservationResult(
+            CheckoutWorkflowEntity workflow, boolean created, OrderOperations.OrderSummary order) { }
 }
