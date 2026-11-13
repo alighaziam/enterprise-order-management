@@ -105,12 +105,15 @@ Example checkout request:
 
 ## Run locally
 
-    docker compose up -d
-    mvn spring-boot:run
+Prepare the packaged application once, then bring PostgreSQL and the application up or down:
 
-Application: http://localhost:8080
+    powershell -File docker/prepare.ps1
+    docker compose up -d --build
+    docker compose down
 
-Run verification:
+Run `docker/prepare.ps1` again after Java or page changes, then `docker compose up -d --build`. The desk is at http://localhost:8080 and Swagger at http://localhost:8080/swagger-ui.html. `docker compose down` keeps the database volume. Add `-v` when the volume should be removed too.
+
+Run verification on the host, with Java 25 and Maven:
 
     mvn clean verify
 
