@@ -1,13 +1,21 @@
 package io.github.alighaziam.eom.checkout.application;
 import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.checkout.infrastructure.*;import io.github.alighaziam.eom.order.OrderOperations;import io.github.alighaziam.eom.order.OrderState;import io.github.alighaziam.eom.payment.*;import io.github.alighaziam.eom.shipping.*;import io.github.alighaziam.eom.outbox.OutboxOperations;import org.springframework.data.domain.Page;import org.springframework.data.domain.PageRequest;import org.springframework.data.domain.Sort;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;import java.time.Instant;import java.util.List;import java.util.UUID;
 @Service public class CheckoutService implements CheckoutOperations {
- private final OrderOperations orders;private final PaymentOperations payments;private final ShippingOperations shipping;private final CheckoutWorkflowRepository workflows;private final OutboxOperations outbox;
- public CheckoutService(OrderOperations o,PaymentOperations p,ShippingOperations s,CheckoutWorkflowRepository w,OutboxOperations b){orders=o;payments=p;shipping=s;workflows=w;outbox=b;}
+ private final OrderOperations orders;private final PaymentOperations payments;private final ShippingOperations shipping;private final CheckoutWorkflowRepository workflows;private final OutboxOperations outbox;private final CheckoutReservationService reservations;
+ public CheckoutService(OrderOperations o,PaymentOperations p,ShippingOperations s,CheckoutWorkflowRepository w,OutboxOperations b,CheckoutReservationService reservations){orders=o;payments=p;shipping=s;workflows=w;outbox=b;this.reservations=reservations;}
  public CheckoutResult checkout(CheckoutRequest r){
  if(r==null||r.customerId()==null||r.lines()==null||r.lines().isEmpty()||r.deliveryAddress()==null||r.idempotencyKey()==null||r.idempotencyKey().isBlank()||r.idempotencyKey().length()>120)throw new IllegalArgumentException("Customer, order lines, delivery address, and idempotency key are required.");
- var prior=workflows.findByIdempotencyKey(r.idempotencyKey());if(prior.isPresent())return prior.get().toResult();
- var order=orders.placeForCheckout(r.customerId(),r.lines());Instant now=Instant.now();var w=workflows.saveAndFlush(new CheckoutWorkflowEntity(UUID.randomUUID(),order.id(),r.idempotencyKey(),r.deliveryAddress(),now));
- outbox.append("CheckoutStarted","CheckoutWorkflow",w.getId().toString(),1,w.getId().toString(),null,"{\"orderId\":\""+order.id()+"\"}");
+ CheckoutReservationService.ReservationResult reservation;
+ try {
+  reservation=reservations.reserve(r);
+ } catch (org.springframework.dao.DataIntegrityViolationException concurrentDuplicate) {
+  return workflows.findByIdempotencyKey(r.idempotencyKey())
+   .map(CheckoutWorkflowEntity::toResult)
+   .orElseThrow(() -> concurrentDuplicate);
+ }
+ CheckoutWorkflowEntity w=reservation.workflow();
+ if(!reservation.created()) return w.toResult();
+ var orderId=w.getOrderId();
  PaymentIntent payment=null;
  try{payment=payments.authorize(order.id(),order.totalAmount(),order.currency(),"checkout:"+r.idempotencyKey());w.payment(payment.id(),CheckoutStatus.PAYMENT_AUTHORIZED,Instant.now());workflows.saveAndFlush(w);payment=payments.capture(payment.id());w.payment(payment.id(),CheckoutStatus.PAYMENT_CAPTURED,Instant.now());workflows.saveAndFlush(w);}
  catch(RuntimeException ex){try{if(payment!=null&&payment.status()==PaymentStatus.AUTHORIZED)payments.voidAuthorization(payment.id());orders.cancelForCheckout(order.id());w.status(CheckoutStatus.FAILED,ex.getMessage(),Instant.now());}catch(RuntimeException compensation){w.status(CheckoutStatus.COMPENSATION_REQUIRED,"Payment step: "+ex.getMessage()+"; compensation: "+compensation.getMessage(),Instant.now());}workflows.saveAndFlush(w);return w.toResult();}
