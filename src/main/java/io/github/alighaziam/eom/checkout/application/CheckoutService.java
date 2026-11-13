@@ -15,14 +15,15 @@ import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.check
  }
  CheckoutWorkflowEntity w=reservation.workflow();
  if(!reservation.created()) return w.toResult();
+ var order=reservation.order();
  var orderId=w.getOrderId();
  PaymentIntent payment=null;
- try{payment=payments.authorize(order.id(),order.totalAmount(),order.currency(),"checkout:"+r.idempotencyKey());w.payment(payment.id(),CheckoutStatus.PAYMENT_AUTHORIZED,Instant.now());workflows.saveAndFlush(w);payment=payments.capture(payment.id());w.payment(payment.id(),CheckoutStatus.PAYMENT_CAPTURED,Instant.now());workflows.saveAndFlush(w);}
- catch(RuntimeException ex){try{if(payment!=null&&payment.status()==PaymentStatus.AUTHORIZED)payments.voidAuthorization(payment.id());orders.cancelForCheckout(order.id());w.status(CheckoutStatus.FAILED,ex.getMessage(),Instant.now());}catch(RuntimeException compensation){w.status(CheckoutStatus.COMPENSATION_REQUIRED,"Payment step: "+ex.getMessage()+"; compensation: "+compensation.getMessage(),Instant.now());}workflows.saveAndFlush(w);return w.toResult();}
- try{orders.confirmForCheckout(order.id());w.status(CheckoutStatus.ORDER_CONFIRMED,null,Instant.now());workflows.saveAndFlush(w);}
- catch(RuntimeException ex){try{payments.refund(payment.id());orders.cancelForCheckout(order.id());w.status(CheckoutStatus.FAILED,"Order confirmation failed; payment refunded. "+ex.getMessage(),Instant.now());}catch(RuntimeException compensation){w.status(CheckoutStatus.COMPENSATION_REQUIRED,"Order confirmation: "+ex.getMessage()+"; compensation: "+compensation.getMessage(),Instant.now());}workflows.saveAndFlush(w);return w.toResult();}
- try{var shipment=shipping.create(order.id(),r.deliveryAddress());w.shipment(shipment.id(),Instant.now());}catch(RuntimeException ex){w.scheduleFulfillmentRetry(ex.getMessage(),Instant.now());}
- workflows.saveAndFlush(w);outbox.append("Checkout"+w.toResult().status().name(),"CheckoutWorkflow",w.getId().toString(),2,w.getId().toString(),null,"{\"orderId\":\""+order.id()+"\"}");return w.toResult();
+ try{payment=payments.authorize(orderId,order.totalAmount(),order.currency(),"checkout:"+r.idempotencyKey());w.payment(payment.id(),CheckoutStatus.PAYMENT_AUTHORIZED,Instant.now());workflows.saveAndFlush(w);payment=payments.capture(payment.id());w.payment(payment.id(),CheckoutStatus.PAYMENT_CAPTURED,Instant.now());workflows.saveAndFlush(w);}
+ catch(RuntimeException ex){try{if(payment!=null&&payment.status()==PaymentStatus.AUTHORIZED)payments.voidAuthorization(payment.id());orders.cancelForCheckout(orderId);w.status(CheckoutStatus.FAILED,ex.getMessage(),Instant.now());}catch(RuntimeException compensation){w.status(CheckoutStatus.COMPENSATION_REQUIRED,"Payment step: "+ex.getMessage()+"; compensation: "+compensation.getMessage(),Instant.now());}workflows.saveAndFlush(w);return w.toResult();}
+ try{orders.confirmForCheckout(orderId);w.status(CheckoutStatus.ORDER_CONFIRMED,null,Instant.now());workflows.saveAndFlush(w);}
+ catch(RuntimeException ex){try{payments.refund(payment.id());orders.cancelForCheckout(orderId);w.status(CheckoutStatus.FAILED,"Order confirmation failed; payment refunded. "+ex.getMessage(),Instant.now());}catch(RuntimeException compensation){w.status(CheckoutStatus.COMPENSATION_REQUIRED,"Order confirmation: "+ex.getMessage()+"; compensation: "+compensation.getMessage(),Instant.now());}workflows.saveAndFlush(w);return w.toResult();}
+ try{var shipment=shipping.create(orderId,r.deliveryAddress());w.shipment(shipment.id(),Instant.now());}catch(RuntimeException ex){w.scheduleFulfillmentRetry(ex.getMessage(),Instant.now());}
+ workflows.saveAndFlush(w);outbox.append("Checkout"+w.toResult().status().name(),"CheckoutWorkflow",w.getId().toString(),2,w.getId().toString(),null,"{\"orderId\":\""+orderId+"\"}");return w.toResult();
  }
  public CheckoutResult get(UUID id){return workflows.findById(id).orElseThrow(()->new CheckoutNotFoundException(id)).toResult();}
  public List<CheckoutResult> list(){return workflows.findTop40ByOrderByUpdatedAtDesc().stream().map(CheckoutWorkflowEntity::toResult).toList();}
