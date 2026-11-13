@@ -61,6 +61,29 @@ public class CheckoutReservationService {
         return new ReservationResult(workflow, true, order);
     }
 
+    public void validateReplay(CheckoutWorkflowEntity existing, CheckoutRequest request) {
+        String stored = existing.getRequestFingerprint();
+        if (stored != null && !"legacy".equals(stored)
+                && !MessageDigest.isEqual(stored.getBytes(StandardCharsets.US_ASCII),
+                        fingerprint(request).getBytes(StandardCharsets.US_ASCII))) {
+            throw new IllegalStateException(
+                    "This idempotency key has already been used with a different checkout request.");
+        }
+    }
+
+    private static String fingerprint(CheckoutRequest request) {
+        String lines = request.lines().stream()
+                .map(line -> line.productId() + ":" + line.quantity())
+                .collect(Collectors.joining("\n"));
+        String canonical = request.customerId() + "\n" + lines + "\n" + request.deliveryAddress();
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(canonical.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
+        }
+    }
+
     public record ReservationResult(
             CheckoutWorkflowEntity workflow, boolean created, OrderOperations.OrderSummary order) { }
 }
