@@ -3,6 +3,8 @@ import io.github.alighaziam.eom.catalog.*;
 import io.github.alighaziam.eom.inventory.InventoryOperations;
 import io.github.alighaziam.eom.order.domain.OrderStatus;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -51,5 +53,7 @@ class OrderServiceTest {
   public io.github.alighaziam.eom.order.domain.Order save(io.github.alighaziam.eom.order.domain.Order o){orders.put(o.id(),o);return o;}
   public Optional<io.github.alighaziam.eom.order.domain.Order> findById(UUID id){return Optional.ofNullable(orders.get(id));}
   public Optional<io.github.alighaziam.eom.order.domain.Order> findByIdForUpdate(UUID id){return findById(id);}
+  public java.util.List<io.github.alighaziam.eom.order.domain.Order> findRecent(){return new java.util.ArrayList<>(orders.values());}
+  public Page<io.github.alighaziam.eom.order.domain.Order> search(String q, io.github.alighaziam.eom.order.domain.OrderStatus status, Pageable pageable){return Page.empty(pageable);}
  }
 }

@@ -49,4 +49,24 @@ class OutboxEntityTest {
         assertNull(event.getLockedBy());
         assertNull(event.getDeadLetteredAt());
     }
+
+    @Test
+    void requeueClearsADeadLetterAndMakesTheEventClaimableAgain() {
+        Instant created = Instant.parse("2026-11-09T10:00:00Z");
+        OutboxEntity event = new OutboxEntity(UUID.randomUUID(), "OrderPlaced", 1, created,
+                "Order", "order-1", 1, "correlation-1", null, "{}", created);
+        for (int attempt = 1; attempt <= 12; attempt++) {
+            event.failed("permanent failure", created.plusSeconds(attempt));
+        }
+        assertNotNull(event.getDeadLetteredAt());
+
+        Instant replayAt = created.plusSeconds(90);
+        event.requeue(replayAt);
+
+        assertNull(event.getDeadLetteredAt());
+        assertNull(event.getPublishedAt());
+        assertNull(event.getLastError());
+        assertEquals(0, event.getAttempts());
+        assertEquals(replayAt, event.getNextAttemptAt());
+    }
 }

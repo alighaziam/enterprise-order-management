@@ -41,7 +41,7 @@ Failed publications increment the attempt counter and are rescheduled with expon
 
 The envelope carries event ID, type, schema version, occurrence time, aggregate identity/version, correlation/causation IDs, and payload. Delivery remains at-least-once: a process crash after publication but before `published_at` is committed can cause a duplicate. Consumers should use InboxService.processOnce so the business handler and deduplication marker commit in one transaction. The inbox primary key is consumer plus event ID.
 
-This is a database-leased in-process relay, not a complete external messaging platform. It does not yet provide per-aggregate ordering, external broker delivery, metrics/alerting, or an operator UI for replaying dead letters. A lease expiry during a very slow publish can still result in duplicate delivery; consumers must remain idempotent.
+This is a database-leased in-process relay, not an external broker. A claim skips a later event while any earlier event for the same aggregate is still unpublished, including events that are leased, waiting for backoff, or dead-lettered. Dead letters can be replayed from the operator desk. Actuator health reports dead-letter and compensation counts at `/actuator/health`; metrics are at `/actuator/metrics`. A lease expiry during a very slow publish can still result in duplicate delivery; consumers must remain idempotent.
 
 For operational inspection of dead letters:
 
@@ -56,13 +56,17 @@ For operational inspection of dead letters:
 | Method | Endpoint | Purpose |
 |---|---|---|
 | POST | /api/v1/customers | Create customer |
+| GET | /api/v1/customers | List recent customers |
 | GET | /api/v1/customers/{id} | Retrieve customer |
 | POST | /api/v1/products | Create product |
+| GET | /api/v1/products | List recent products |
 | GET | /api/v1/products/{id} | Retrieve product |
 | POST | /api/v1/inventory/stock | Initialize stock |
+| GET | /api/v1/inventory | List stock |
 | GET | /api/v1/inventory/{productId} | Read stock |
 | POST | /api/v1/inventory/reservations | Reserve stock |
 | POST | /api/v1/orders | Place order |
+| GET | /api/v1/orders | List recent orders |
 | GET | /api/v1/orders/{orderId} | Retrieve order |
 | POST | /api/v1/orders/{orderId}/confirm | Confirm order |
 | POST | /api/v1/orders/{orderId}/cancel | Cancel order |
@@ -70,12 +74,20 @@ For operational inspection of dead letters:
 | POST | /api/v1/payments/{id}/capture | Capture sandbox payment |
 | POST | /api/v1/payments/{id}/void | Void authorization |
 | POST | /api/v1/payments/{id}/refund | Refund captured payment |
+| GET | /api/v1/payments | List recent payments |
 | GET | /api/v1/payments/{id} | Retrieve payment |
 | POST | /api/v1/shipments | Create shipment with address snapshot |
+| GET | /api/v1/shipments | List recent shipments |
 | GET | /api/v1/shipments/{id} | Retrieve shipment |
 | POST | /api/v1/shipments/{id}/status | Advance shipment status |
 | POST | /api/v1/checkouts | Run the persisted checkout workflow |
+| GET | /api/v1/checkouts | List recent workflows |
 | GET | /api/v1/checkouts/{id} | Retrieve workflow and current status |
+| POST | /api/v1/checkouts/{id}/reconcile | Retry local compensation for COMPENSATION_REQUIRED |
+| GET | /api/v1/outbox/events | List recent outbox events |
+| POST | /api/v1/outbox/events/{eventId}/replay | Replay a dead-lettered event |
+| GET | /actuator/health | Process health, dead letters, and compensation counts |
+| GET | /swagger-ui.html | OpenAPI UI |
 
 Example checkout request:
 
@@ -124,7 +136,8 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Persisted checkout workflow with compensation paths
 - [x] Flyway schema and Spring Modulith boundary verification
 - [x] PostgreSQL-backed integration tests and GitHub Actions verification
-- [ ] Per-aggregate event ordering, metrics/alerting, external broker adapter, and dead-letter replay UI
+- [x] Per-aggregate event ordering, actuator health and metrics, and dead-letter replay on the operator desk
+- [ ] External broker adapter
 - [ ] Real payment provider and carrier integrations (require separate credentials, security review, and approval)
 - [x] Scheduled fulfillment recovery for FULFILLMENT_PENDING using persisted address snapshots and exponential retry delay
-- [ ] Operator reconciliation workflow for COMPENSATION_REQUIRED (requires provider-side outcome verification)
+- [x] Operator reconciliation for COMPENSATION_REQUIRED when the order is still reserved; a confirmed captured sale is left intact

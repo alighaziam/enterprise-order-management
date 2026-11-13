@@ -1,7 +1,8 @@
 package io.github.alighaziam.eom.payment.api;
-import io.github.alighaziam.eom.payment.*; import io.github.alighaziam.eom.payment.application.PaymentNotFoundException; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import org.springframework.http.HttpStatus; import org.springframework.http.ProblemDetail; import org.springframework.web.bind.annotation.*; import java.math.BigDecimal; import java.util.UUID;
+import io.github.alighaziam.eom.payment.*; import io.github.alighaziam.eom.payment.application.PaymentNotFoundException; import io.github.alighaziam.eom.payment.application.PaymentService; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import org.springframework.data.domain.Page; import org.springframework.http.HttpStatus; import org.springframework.http.ProblemDetail; import org.springframework.web.bind.annotation.*; import java.math.BigDecimal; import java.util.List; import java.util.UUID;
 @RestController @RequestMapping("/api/v1/payments") public class PaymentController {
- private final PaymentOperations payments; public PaymentController(PaymentOperations p){payments=p;}
+ private final PaymentService payments; public PaymentController(PaymentService p){payments=p;}
+ @GetMapping public Page<PaymentIntent> list(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="8") int size,@RequestParam(required=false) String q,@RequestParam(required=false) String status){return payments.search(q,status,page,size);}
  @PostMapping @ResponseStatus(HttpStatus.CREATED) public PaymentIntent authorize(@Valid @RequestBody AuthorizeRequest r){return payments.authorize(r.orderId(),r.amount(),r.currency(),r.idempotencyKey());}
  @PostMapping("/{id}/capture") public PaymentIntent capture(@PathVariable UUID id){return payments.capture(id);}
  @PostMapping("/{id}/void") public PaymentIntent voidPayment(@PathVariable UUID id){return payments.voidAuthorization(id);}

@@ -23,7 +23,14 @@ public class OutboxClaimService {
             throw new IllegalArgumentException("Batch size must be between 1 and 500.");
         }
 
-        Instant now = Instant.now();
+        return claimBatch(batchSize, Instant.now());
+    }
+
+    @Transactional
+    public List<OutboxEntity> claimBatch(int batchSize, Instant now) {
+        if (batchSize < 1 || batchSize > 500) {
+            throw new IllegalArgumentException("Batch size must be between 1 and 500.");
+        }
         String workerId = UUID.randomUUID().toString();
         repository.claimBatch(workerId, now, now.plusSeconds(LEASE_SECONDS), batchSize);
         return repository.findByLockedByOrderByCreatedAtAsc(workerId);

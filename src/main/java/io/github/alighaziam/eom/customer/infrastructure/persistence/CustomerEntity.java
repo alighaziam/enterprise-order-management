@@ -21,21 +21,26 @@ public class CustomerEntity {
     @Column(nullable = false, length = 254)
     private String email;
 
+    @Column(nullable = false)
+    private boolean active;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
     protected CustomerEntity() {
     }
 
-    CustomerEntity(UUID id, String fullName, String email, Instant createdAt) {
+    CustomerEntity(UUID id, String fullName, String email, boolean active, Instant createdAt) {
         this.id = id;
         this.fullName = fullName;
         this.email = email;
+        this.active = active;
         this.createdAt = createdAt;
     }
 
     UUID getId() { return id; }
     String getFullName() { return fullName; }
     String getEmail() { return email; }
+    boolean isActive() { return active; }
     Instant getCreatedAt() { return createdAt; }
 }

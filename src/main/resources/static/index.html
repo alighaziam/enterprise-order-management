@@ -3,44 +3,52 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache">
   <title>Enterprise Order Management</title>
-  <style>
-    :root { color-scheme: light; }
-    body { margin: 0; font-family: "Segoe UI", sans-serif; background: #f4f6f8; color: #1c2430; }
-    main { max-width: 760px; margin: 48px auto; padding: 0 20px 48px; }
-    h1 { font-size: 1.7rem; margin-bottom: 0.25rem; }
-    p { line-height: 1.5; }
-    .status { color: #0b6b3a; font-weight: 600; }
-    table { width: 100%; border-collapse: collapse; background: #fff; }
-    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e4e8ee; font-size: 0.95rem; }
-    th { background: #eef2f6; }
-    code { font-family: Consolas, monospace; }
-  </style>
+  <link rel="stylesheet" href="/assets/console.css?v=8">
+  <script>
+    (function () {
+      var stored = localStorage.getItem("eom.lang");
+      var lang = stored === "fa" || stored === "en" ? stored : ((navigator.language || "").toLowerCase().indexOf("fa") === 0 ? "fa" : "en");
+      document.documentElement.lang = lang === "fa" ? "fa" : "en";
+      document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
+    })();
+  </script>
 </head>
 <body>
-<main>
-  <h1>Enterprise Order Management</h1>
-  <p class="status">Application is running.</p>
-  <p>This service is an HTTP API. Open one of the resources below, or call them with a client. A browser visit to an unknown path returns 404.</p>
-  <table>
-    <thead><tr><th>Method</th><th>Path</th></tr></thead>
-    <tbody>
-      <tr><td>POST</td><td><code>/api/v1/customers</code></td></tr>
-      <tr><td>GET</td><td><code>/api/v1/customers/{id}</code></td></tr>
-      <tr><td>POST</td><td><code>/api/v1/products</code></td></tr>
-      <tr><td>GET</td><td><code>/api/v1/products/{id}</code></td></tr>
-      <tr><td>POST</td><td><code>/api/v1/inventory/stock</code></td></tr>
-      <tr><td>GET</td><td><code>/api/v1/inventory/{productId}</code></td></tr>
-      <tr><td>POST</td><td><code>/api/v1/orders</code></td></tr>
-      <tr><td>GET</td><td><code>/api/v1/orders/{orderId}</code></td></tr>
-      <tr><td>POST</td><td><code>/api/v1/payments</code></td></tr>
-      <tr><td>GET</td><td><code>/api/v1/payments/{id}</code></td></tr>
-      <tr><td>POST</td><td><code>/api/v1/shipments</code></td></tr>
-      <tr><td>GET</td><td><code>/api/v1/shipments/{id}</code></td></tr>
-      <tr><td>POST</td><td><code>/api/v1/checkouts</code></td></tr>
-      <tr><td>GET</td><td><code>/api/v1/checkouts/{id}</code></td></tr>
-    </tbody>
-  </table>
-</main>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="mark">EO</div>
+        <div>
+          <strong id="brand-name">Order desk</strong>
+          <span id="brand-note">Enterprise operations</span>
+        </div>
+      </div>
+      <nav class="nav" id="nav"></nav>
+      <footer id="legal">Sandbox payments only. No card numbers are collected and no carrier is called.</footer>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="eyebrow">Desk</p>
+          <h1 id="title">Overview</h1>
+        </div>
+        <div class="top-actions">
+          <div class="lang" role="group" aria-label="Language">
+            <button class="lang-btn" type="button" data-lang="fa" aria-pressed="false">فارسی</button>
+            <button class="lang-btn" type="button" data-lang="en" aria-pressed="true">English</button>
+          </div>
+          <span id="health" class="health">Checking</span>
+          <button class="btn" id="refresh" type="button">Refresh</button>
+          <a class="btn primary" id="new-checkout" href="#/checkout">New checkout</a>
+        </div>
+      </header>
+      <main id="view"></main>
+    </div>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <script src="/assets/i18n.js?v=8"></script>
+  <script src="/assets/console.js?v=8"></script>
 </body>
 </html>

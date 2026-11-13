@@ -116,8 +116,22 @@ public class OutboxEntity {
         lockedUntil = null;
     }
 
+    public void requeue(Instant at) {
+        deadLetteredAt = null;
+        publishedAt = null;
+        attempts = 0;
+        lastError = null;
+        nextAttemptAt = at;
+        clearLease();
+    }
+
     public UUID getEventId() { return eventId; }
+    public String getEventType() { return eventType; }
+    public String getAggregateType() { return aggregateType; }
+    public String getAggregateId() { return aggregateId; }
     public int getAttempts() { return attempts; }
+    public String getLastError() { return lastError; }
+    public Instant getCreatedAt() { return createdAt; }
     public Instant getNextAttemptAt() { return nextAttemptAt; }
     public Instant getPublishedAt() { return publishedAt; }
     public Instant getDeadLetteredAt() { return deadLetteredAt; }

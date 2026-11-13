@@ -1,0 +1,1 @@
+ALTER TABLE customer.customers ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE;

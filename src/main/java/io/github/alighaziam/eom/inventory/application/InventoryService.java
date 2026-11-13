@@ -3,10 +3,14 @@ package io.github.alighaziam.eom.inventory.application;
 import io.github.alighaziam.eom.inventory.domain.Reservation;
 import io.github.alighaziam.eom.inventory.domain.ReservationStatus;
 import io.github.alighaziam.eom.inventory.domain.StockItem;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -56,6 +60,26 @@ public class InventoryService {
             throw new IllegalStateException("Reserved stock invariant violated for reservation: " + reservationId);
         }
         return store.saveReservation(confirmed);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<StockItem> search(String availability, int page, int size) {
+        String filter = availability == null || availability.isBlank() ? null : availability;
+        return store.search(filter, PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), Sort.by(Sort.Direction.DESC, "updatedAt")));
+    }
+
+    public StockItem setOnHand(UUID productId, int quantity) {
+        if (quantity < 0) throw new IllegalArgumentException("On-hand quantity cannot be negative.");
+        StockItem current = find(productId);
+        if (quantity < current.reservedQuantity()) {
+            throw new IllegalStateException("On-hand quantity cannot be lower than the reserved quantity.");
+        }
+        return store.save(new StockItem(productId, quantity, current.reservedQuantity(), Instant.now()));
+    }
+
+    @Transactional(readOnly = true)
+    public List<StockItem> list() {
+        return store.findAllStock();
     }
 
     @Transactional(readOnly = true)
