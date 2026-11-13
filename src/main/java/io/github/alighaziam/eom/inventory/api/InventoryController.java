@@ -7,11 +7,13 @@ import io.github.alighaziam.eom.inventory.domain.StockItem;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -21,6 +23,18 @@ public class InventoryController {
 
     public InventoryController(InventoryService service) {
         this.service = service;
+    }
+
+    @GetMapping
+    public Page<StockResponse> list(@RequestParam(defaultValue = "0") int page,
+                                    @RequestParam(defaultValue = "8") int size,
+                                    @RequestParam(required = false) String availability) {
+        return service.search(availability, page, size).map(StockResponse::from);
+    }
+
+    @PutMapping("/{productId}")
+    public StockResponse setOnHand(@PathVariable UUID productId, @Valid @RequestBody QuantityRequest request) {
+        return StockResponse.from(service.setOnHand(productId, request.quantity()));
     }
 
     @PostMapping("/stock")
@@ -63,6 +77,7 @@ public class InventoryController {
     }
 
     public record InitializeStockRequest(@NotNull UUID productId, @Min(0) int quantity) {}
+    public record QuantityRequest(@Min(0) int quantity) {}
     public record ReserveStockRequest(@NotNull UUID productId, @Min(1) int quantity) {}
 
     public record StockResponse(

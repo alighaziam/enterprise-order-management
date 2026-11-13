@@ -1,5 +1,7 @@
 package io.github.alighaziam.eom.inventory.infrastructure.persistence;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -35,4 +37,13 @@ interface SpringDataStockRepository extends JpaRepository<StockItemEntity, UUID>
               AND reserved_quantity >= :quantity
             """, nativeQuery = true)
     int confirmReserved(@Param("productId") UUID productId, @Param("quantity") int quantity);
+
+    @Query("""
+            select s from StockItemEntity s
+            where (:availability is null or :availability = ''
+                or (:availability = 'reserved' and s.reservedQuantity > 0)
+                or (:availability = 'available' and s.onHandQuantity > s.reservedQuantity)
+                or (:availability = 'empty' and s.onHandQuantity <= s.reservedQuantity))
+            """)
+    Page<StockItemEntity> search(@Param("availability") String availability, Pageable pageable);
 }

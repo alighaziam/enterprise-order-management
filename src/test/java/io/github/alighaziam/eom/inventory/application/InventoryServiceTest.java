@@ -4,6 +4,9 @@ import io.github.alighaziam.eom.inventory.domain.Reservation;
 import io.github.alighaziam.eom.inventory.domain.ReservationStatus;
 import io.github.alighaziam.eom.inventory.domain.StockItem;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.*;
@@ -79,6 +82,21 @@ class InventoryServiceTest {
 
         public Optional<StockItem> findByProductId(UUID id) {
             return Optional.ofNullable(stocks.get(id));
+        }
+
+        public java.util.List<StockItem> findAllStock() {
+            return new java.util.ArrayList<>(stocks.values());
+        }
+
+        public Page<StockItem> search(String availability, Pageable pageable) {
+            var matched = stocks.values().stream().filter(item -> switch (availability == null ? "" : availability) {
+                case "reserved" -> item.reservedQuantity() > 0;
+                case "available" -> item.availableQuantity() > 0;
+                case "empty" -> item.availableQuantity() <= 0;
+                default -> true;
+            }).toList();
+            int start = (int) Math.min(pageable.getOffset(), matched.size());
+            return new PageImpl<>(matched.subList(start, Math.min(start + pageable.getPageSize(), matched.size())), pageable, matched.size());
         }
 
         public boolean reserve(UUID id, int quantity) {

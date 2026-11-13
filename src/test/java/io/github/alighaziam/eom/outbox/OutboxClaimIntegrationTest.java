@@ -38,4 +38,57 @@ class OutboxClaimIntegrationTest {
             repository.deleteById(eventId);
         }
     }
+
+    @Test
+    void aLaterEventWaitsUntilTheEarlierEventForTheSameAggregateIsPublished() {
+        Instant due = Instant.now().plusSeconds(3600);
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        String aggregate = "order-" + first;
+        repository.saveAndFlush(new OutboxEntity(first, "OrderPlaced", 1, due,
+                "Order", aggregate, 1, aggregate, null, "{}", due));
+        repository.saveAndFlush(new OutboxEntity(second, "OrderConfirmed", 1, due.plusSeconds(1),
+                "Order", aggregate, 2, aggregate, null, "{}", due.plusSeconds(1)));
+        Instant asOf = due.plusSeconds(10);
+
+        try {
+            var claimed = claimService.claimBatch(50, asOf);
+            assertTrue(claimed.stream().anyMatch(event -> event.getEventId().equals(first)));
+            assertFalse(claimed.stream().anyMatch(event -> event.getEventId().equals(second)));
+
+            OutboxEntity head = repository.findById(first).orElseThrow();
+            head.published(asOf);
+            repository.saveAndFlush(head);
+
+            var next = claimService.claimBatch(50, asOf);
+            assertTrue(next.stream().anyMatch(event -> event.getEventId().equals(second)));
+        } finally {
+            repository.deleteById(first);
+            repository.deleteById(second);
+        }
+    }
+
+    @Test
+    void aDeadLetterBlocksLaterEventsForTheSameAggregate() {
+        Instant due = Instant.now().plusSeconds(3600);
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        String aggregate = "order-" + second;
+        OutboxEntity blocked = new OutboxEntity(first, "OrderPlaced", 1, due,
+                "Order", aggregate, 1, aggregate, null, "{}", due);
+        for (int attempt = 0; attempt < 12; attempt++) {
+            blocked.failed("forced", due);
+        }
+        repository.saveAndFlush(blocked);
+        repository.saveAndFlush(new OutboxEntity(second, "OrderConfirmed", 1, due.plusSeconds(1),
+                "Order", aggregate, 2, aggregate, null, "{}", due.plusSeconds(1)));
+
+        try {
+            var claimed = claimService.claimBatch(50, due.plusSeconds(10));
+            assertFalse(claimed.stream().anyMatch(event -> event.getEventId().equals(second)));
+        } finally {
+            repository.deleteById(first);
+            repository.deleteById(second);
+        }
+    }
 }

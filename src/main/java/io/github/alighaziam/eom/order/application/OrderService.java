@@ -1,5 +1,7 @@
 package io.github.alighaziam.eom.order.application;
-import io.github.alighaziam.eom.catalog.CatalogOperations;import io.github.alighaziam.eom.catalog.CatalogProduct;import io.github.alighaziam.eom.customer.CustomerOperations;import io.github.alighaziam.eom.inventory.InventoryOperations;import io.github.alighaziam.eom.order.OrderOperations;import io.github.alighaziam.eom.order.domain.Order;import io.github.alighaziam.eom.order.domain.OrderLine;import io.github.alighaziam.eom.order.domain.OrderStatus;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;import java.math.BigDecimal;import java.time.Instant;import java.util.*;
+import io.github.alighaziam.eom.catalog.CatalogOperations;import io.github.alighaziam.eom.catalog.CatalogProduct;import io.github.alighaziam.eom.customer.CustomerOperations;import io.github.alighaziam.eom.inventory.InventoryOperations;import io.github.alighaziam.eom.order.OrderOperations;import io.github.alighaziam.eom.order.OrderState;import io.github.alighaziam.eom.order.domain.Order;import io.github.alighaziam.eom.order.domain.OrderLine;import io.github.alighaziam.eom.order.domain.OrderStatus;import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;import java.math.BigDecimal;import java.time.Instant;import java.util.*;
 @Service @Transactional public class OrderService implements OrderOperations {
  private final OrderStore store;private final CustomerOperations customers;private final CatalogOperations catalog;private final InventoryOperations inventory;
  public OrderService(OrderStore s,CustomerOperations c,CatalogOperations p,InventoryOperations i){store=s;customers=c;catalog=p;inventory=i;}
@@ -15,9 +17,16 @@ import io.github.alighaziam.eom.catalog.CatalogOperations;import io.github.aligh
  public Order confirm(UUID id){Order o=findForUpdate(id);if(o.status()==OrderStatus.CONFIRMED)return o;if(o.status()!=OrderStatus.RESERVED)throw new OrderConflictException("Only reserved orders can be confirmed.");try{for(OrderLine l:o.lines())inventory.confirm(l.reservationId());}catch(RuntimeException ex){throw new OrderConflictException("Order confirmation failed; no partial confirmation was committed.",ex);}return store.save(o.confirm(Instant.now()));}
  public Order cancel(UUID id){Order o=findForUpdate(id);if(o.status()==OrderStatus.CANCELLED)return o;if(o.status()!=OrderStatus.RESERVED)throw new OrderConflictException("Only reserved orders can be cancelled.");try{for(OrderLine l:o.lines())inventory.release(l.reservationId());}catch(RuntimeException ex){throw new OrderConflictException("Order cancellation failed; no partial release was committed.",ex);}return store.save(o.cancel(Instant.now()));}
  @Transactional(readOnly=true) public Order get(UUID id){return store.findById(id).orElseThrow(()->new OrderNotFoundException(id));}
+ @Transactional(readOnly=true) public List<Order> list(){return store.findRecent();}
+ @Transactional(readOnly=true) public Page<Order> search(String q, String status, int page, int size){
+  OrderStatus parsed=status==null||status.isBlank()?null:OrderStatus.valueOf(status);
+  String query=q==null||q.isBlank()?null:q.trim();
+  return store.search(query, parsed, PageRequest.of(Math.max(page,0), Math.min(Math.max(size,1),100), Sort.by(Sort.Direction.DESC,"createdAt")));
+ }
  public OrderSummary placeForCheckout(UUID customerId,Collection<OrderLineRequest> lines){Order o=place(customerId,lines);return summary(o);}
  public OrderSummary confirmForCheckout(UUID id){return summary(confirm(id));}
  public OrderSummary cancelForCheckout(UUID id){return summary(cancel(id));}
+ public OrderState state(UUID id){return OrderState.valueOf(get(id).status().name());}
  private OrderSummary summary(Order o){return new OrderSummary(o.id(),o.totalAmount(),o.currency());}
  private Order findForUpdate(UUID id){return store.findByIdForUpdate(id).orElseThrow(()->new OrderNotFoundException(id));}
  public record OrderRequestLine(UUID productId,int quantity){}

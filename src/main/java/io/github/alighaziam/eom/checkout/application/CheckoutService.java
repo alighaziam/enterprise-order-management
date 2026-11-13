@@ -1,5 +1,5 @@
 package io.github.alighaziam.eom.checkout.application;
-import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.checkout.infrastructure.*;import io.github.alighaziam.eom.order.OrderOperations;import io.github.alighaziam.eom.payment.*;import io.github.alighaziam.eom.shipping.*;import io.github.alighaziam.eom.outbox.OutboxOperations;import org.springframework.stereotype.Service;import java.time.Instant;import java.util.UUID;
+import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.checkout.infrastructure.*;import io.github.alighaziam.eom.order.OrderOperations;import io.github.alighaziam.eom.order.OrderState;import io.github.alighaziam.eom.payment.*;import io.github.alighaziam.eom.shipping.*;import io.github.alighaziam.eom.outbox.OutboxOperations;import org.springframework.data.domain.Page;import org.springframework.data.domain.PageRequest;import org.springframework.data.domain.Sort;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;import java.time.Instant;import java.util.List;import java.util.UUID;
 @Service public class CheckoutService implements CheckoutOperations {
  private final OrderOperations orders;private final PaymentOperations payments;private final ShippingOperations shipping;private final CheckoutWorkflowRepository workflows;private final OutboxOperations outbox;
  public CheckoutService(OrderOperations o,PaymentOperations p,ShippingOperations s,CheckoutWorkflowRepository w,OutboxOperations b){orders=o;payments=p;shipping=s;workflows=w;outbox=b;}
@@ -17,4 +17,37 @@ import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.check
  workflows.saveAndFlush(w);outbox.append("Checkout"+w.toResult().status().name(),"CheckoutWorkflow",w.getId().toString(),2,w.getId().toString(),null,"{\"orderId\":\""+order.id()+"\"}");return w.toResult();
  }
  public CheckoutResult get(UUID id){return workflows.findById(id).orElseThrow(()->new CheckoutNotFoundException(id)).toResult();}
+ public List<CheckoutResult> list(){return workflows.findTop40ByOrderByUpdatedAtDesc().stream().map(CheckoutWorkflowEntity::toResult).toList();}
+ @Transactional(readOnly=true) public Page<CheckoutResult> search(String q, String status, int page, int size){
+  CheckoutStatus parsed=status==null||status.isBlank()?null:CheckoutStatus.valueOf(status);
+  return workflows.search(q==null||q.isBlank()?null:q.trim(), parsed, PageRequest.of(Math.max(page,0), Math.min(Math.max(size,1),100), Sort.by(Sort.Direction.DESC,"updatedAt"))).map(CheckoutWorkflowEntity::toResult);
+ }
+ @Transactional(readOnly=true) public long compensationRequiredCount(){return workflows.countByStatus(CheckoutStatus.COMPENSATION_REQUIRED);}
+
+ public CheckoutResult reconcile(UUID id){
+  var workflow=workflows.findById(id).orElseThrow(()->new CheckoutNotFoundException(id));
+  if(workflow.getStatus()!=CheckoutStatus.COMPENSATION_REQUIRED) throw new IllegalStateException("Only a workflow that needs compensation can be reconciled.");
+  try{
+   compensate(workflow);
+   workflow.status(CheckoutStatus.FAILED,"Compensation completed.",Instant.now());
+  }catch(RuntimeException ex){
+   workflow.status(CheckoutStatus.COMPENSATION_REQUIRED,ex.getMessage(),Instant.now());
+   workflows.saveAndFlush(workflow);
+   throw ex;
+  }
+  return workflows.saveAndFlush(workflow).toResult();
+ }
+
+ private void compensate(CheckoutWorkflowEntity workflow){
+  PaymentIntent payment=workflow.getPaymentId()==null?null:payments.get(workflow.getPaymentId());
+  OrderState order=orders.state(workflow.getOrderId());
+  if(order==OrderState.CONFIRMED && payment!=null && (payment.status()==PaymentStatus.CAPTURED || payment.status()==PaymentStatus.REFUND_PENDING))
+   throw new IllegalStateException("The order is confirmed and the payment is captured. This does not undo a committed sale; continue fulfillment or refund the payment explicitly.");
+  if(payment!=null && payment.status()==PaymentStatus.AUTHORIZED) payments.voidAuthorization(payment.id());
+  else if(payment!=null && payment.status()==PaymentStatus.CAPTURED) payments.refund(payment.id());
+  else if(payment!=null && payment.status()!=PaymentStatus.VOIDED && payment.status()!=PaymentStatus.REFUNDED && payment.status()!=PaymentStatus.FAILED)
+   throw new IllegalStateException("Payment is "+payment.status()+" and cannot be compensated automatically.");
+  if(order==OrderState.RESERVED) orders.cancelForCheckout(workflow.getOrderId());
+  else if(order==OrderState.CONFIRMED) throw new IllegalStateException("The order is confirmed. Inspect it before releasing stock.");
+ }
 }

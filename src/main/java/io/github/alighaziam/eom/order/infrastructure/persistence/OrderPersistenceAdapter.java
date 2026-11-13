@@ -1,7 +1,11 @@
 package io.github.alighaziam.eom.order.infrastructure.persistence;
 import io.github.alighaziam.eom.order.application.OrderStore;
 import io.github.alighaziam.eom.order.domain.Order;
+import io.github.alighaziam.eom.order.domain.OrderStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 @Repository
@@ -11,4 +15,6 @@ public class OrderPersistenceAdapter implements OrderStore{
  public Order save(Order order){return repository.save(new OrderEntity(order)).toDomain();}
  public Optional<Order> findById(UUID id){return repository.findWithLinesById(id).map(OrderEntity::toDomain);}
  public Optional<Order> findByIdForUpdate(UUID id){return repository.findByIdForUpdate(id).map(OrderEntity::toDomain);}
+ public List<Order> findRecent(){return repository.findTop40ByOrderByCreatedAtDesc().stream().map(OrderEntity::toDomain).toList();}
+ public Page<Order> search(String q, OrderStatus status, Pageable pageable){return repository.search(q, status, pageable).map(OrderEntity::toDomain);}
 }

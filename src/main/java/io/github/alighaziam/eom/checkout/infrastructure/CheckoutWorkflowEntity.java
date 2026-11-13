@@ -10,7 +10,7 @@ import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.shipp
  public void status(CheckoutStatus s,String error,Instant now){status=s;lastError=truncate(error);updatedAt=now;}
  public void scheduleFulfillmentRetry(String error,Instant now){status=CheckoutStatus.FULFILLMENT_PENDING;lastError=truncate(error);fulfillmentAttempts++;long delay=Math.min(3600L,1L<<Math.min(fulfillmentAttempts,12));nextAttemptAt=now.plusSeconds(delay);updatedAt=now;}
  public CheckoutOperations.CheckoutResult toResult(){return new CheckoutOperations.CheckoutResult(id,orderId,paymentId,shipmentId,status,lastError);}
- public UUID getId(){return id;}public UUID getOrderId(){return orderId;}public CheckoutStatus getStatus(){return status;}
+ public UUID getId(){return id;}public UUID getOrderId(){return orderId;}public UUID getPaymentId(){return paymentId;}public CheckoutStatus getStatus(){return status;}
  public DeliveryAddress getDeliveryAddress(){return new DeliveryAddress(recipientName,addressLine1,addressLine2,city,postalCode,countryCode,phone);}
  public Instant getNextAttemptAt(){return nextAttemptAt;}
  private String truncate(String s){return s==null?null:s.substring(0,Math.min(1000,s.length()));}

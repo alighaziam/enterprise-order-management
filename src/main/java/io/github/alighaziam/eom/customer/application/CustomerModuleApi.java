@@ -6,5 +6,5 @@ import java.util.UUID;
 public class CustomerModuleApi implements CustomerOperations {
  private final CustomerService service;
  public CustomerModuleApi(CustomerService service){this.service=service;}
- public boolean customerExists(UUID id){return service.findById(id).isPresent();}
+ public boolean customerExists(UUID id){return service.findById(id).filter(customer -> customer.active()).isPresent();}
 }

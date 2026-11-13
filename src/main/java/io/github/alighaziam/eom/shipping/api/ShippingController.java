@@ -1,7 +1,8 @@
 package io.github.alighaziam.eom.shipping.api;
-import io.github.alighaziam.eom.shipping.*; import io.github.alighaziam.eom.shipping.application.ShipmentNotFoundException; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import org.springframework.http.HttpStatus; import org.springframework.http.ProblemDetail; import org.springframework.web.bind.annotation.*; import java.util.UUID;
+import io.github.alighaziam.eom.shipping.*; import io.github.alighaziam.eom.shipping.application.ShipmentNotFoundException; import io.github.alighaziam.eom.shipping.application.ShippingService; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import org.springframework.data.domain.Page; import org.springframework.http.HttpStatus; import org.springframework.http.ProblemDetail; import org.springframework.web.bind.annotation.*; import java.util.List; import java.util.UUID;
 @RestController @RequestMapping("/api/v1/shipments") public class ShippingController {
- private final ShippingOperations service;public ShippingController(ShippingOperations s){service=s;}
+ private final ShippingService service;public ShippingController(ShippingService s){service=s;}
+ @GetMapping public Page<Shipment> list(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="8") int size,@RequestParam(required=false) String q,@RequestParam(required=false) String status){return service.search(q,status,page,size);}
  @PostMapping @ResponseStatus(HttpStatus.CREATED) public Shipment create(@Valid @RequestBody CreateRequest r){return service.create(r.orderId(),new DeliveryAddress(r.recipientName(),r.addressLine1(),r.addressLine2(),r.city(),r.postalCode(),r.countryCode(),r.phone()));}
  @GetMapping("/{id}") public Shipment get(@PathVariable UUID id){return service.get(id);}
  @PostMapping("/{id}/status") public Shipment update(@PathVariable UUID id,@Valid @RequestBody StatusRequest r){return service.updateStatus(id,r.status());}

@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -22,11 +23,29 @@ public class CustomerController {
         this.customerService = customerService;
     }
 
+    @GetMapping
+    public Page<CustomerResponse> list(@RequestParam(defaultValue = "0") int page,
+                                       @RequestParam(defaultValue = "8") int size,
+                                       @RequestParam(required = false) String q,
+                                       @RequestParam(required = false) Boolean active) {
+        return customerService.search(q, active, page, size).map(CustomerResponse::from);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CustomerResponse create(@Valid @RequestBody CreateCustomerRequest request) {
         Customer customer = customerService.create(request.fullName(), request.email());
         return CustomerResponse.from(customer);
+    }
+
+    @PutMapping("/{id}")
+    public CustomerResponse update(@PathVariable UUID id, @Valid @RequestBody CreateCustomerRequest request) {
+        return CustomerResponse.from(customerService.update(id, request.fullName(), request.email()));
+    }
+
+    @PostMapping("/{id}/active")
+    public CustomerResponse setActive(@PathVariable UUID id, @RequestBody ActiveRequest request) {
+        return CustomerResponse.from(customerService.setActive(id, request.active()));
     }
 
     @GetMapping("/{id}")
@@ -41,9 +60,11 @@ public class CustomerController {
             @NotBlank @Email @Size(max = 254) String email
     ) {}
 
-    public record CustomerResponse(UUID id, String fullName, String email, Instant createdAt) {
+    public record ActiveRequest(boolean active) {}
+
+    public record CustomerResponse(UUID id, String fullName, String email, boolean active, Instant createdAt) {
         static CustomerResponse from(Customer customer) {
-            return new CustomerResponse(customer.id(), customer.fullName(), customer.email(), customer.createdAt());
+            return new CustomerResponse(customer.id(), customer.fullName(), customer.email(), customer.active(), customer.createdAt());
         }
     }
 }

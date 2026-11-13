@@ -3,6 +3,7 @@ import io.github.alighaziam.eom.order.application.*;
 import io.github.alighaziam.eom.order.domain.*;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,7 @@ import java.util.UUID;
 public class OrderController {
  private final OrderService service;
  public OrderController(OrderService service){this.service=service;}
+ @GetMapping public Page<OrderResponse> list(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="8") int size,@RequestParam(required=false) String q,@RequestParam(required=false) String status){return service.search(q,status,page,size).map(OrderResponse::from);}
  @PostMapping @ResponseStatus(HttpStatus.CREATED)
  public OrderResponse place(@Valid @RequestBody PlaceOrderRequest r){
   return OrderResponse.from(service.place(r.customerId(),r.lines().stream().map(l->new OrderService.OrderRequestLine(l.productId(),l.quantity())).toList()));

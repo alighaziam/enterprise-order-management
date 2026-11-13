@@ -5,20 +5,19 @@ This runbook is a repeatable 10–15 minute walkthrough for reviewers and interv
 ## 1. Prerequisites
 
 - Docker Engine / Docker Desktop with Compose.
-- Java 25.
-- Maven (or use the Maven wrapper if one is added later).
 - `curl` and `jq`.
+- Java 25 and Maven, only when running `mvn clean verify`.
 
 ## 2. Start the application
 
 From the repository root:
 
 ```bash
-docker compose up -d
-mvn spring-boot:run
+powershell -File docker/prepare.ps1
+docker compose up -d --build
 ```
 
-Wait until Spring Boot reports that the application has started and Flyway migrations have completed. Base URL:
+Wait until `docker compose ps` shows the application as running. Stop the stack with `docker compose down`. Base URL:
 
 ```bash
 export BASE_URL=http://localhost:8080

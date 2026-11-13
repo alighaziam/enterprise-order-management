@@ -3,8 +3,11 @@ package io.github.alighaziam.eom.inventory.infrastructure.persistence;
 import io.github.alighaziam.eom.inventory.application.InventoryStore;
 import io.github.alighaziam.eom.inventory.domain.Reservation;
 import io.github.alighaziam.eom.inventory.domain.StockItem;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,6 +34,16 @@ public class InventoryPersistenceAdapter implements InventoryStore {
     @Override
     public Optional<StockItem> findByProductId(UUID id) {
         return stockRepository.findById(id).map(InventoryPersistenceAdapter::toDomain);
+    }
+
+    @Override
+    public List<StockItem> findAllStock() {
+        return stockRepository.findAll().stream().map(InventoryPersistenceAdapter::toDomain).toList();
+    }
+
+    @Override
+    public Page<StockItem> search(String availability, Pageable pageable) {
+        return stockRepository.search(availability, pageable).map(InventoryPersistenceAdapter::toDomain);
     }
 
     @Override
