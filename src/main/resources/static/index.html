@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-cache">
   <title>Enterprise Order Management</title>
-  <link rel="stylesheet" href="/assets/console.css?v=8">
+  <link rel="stylesheet" href="/assets/console.css?v=9">
   <script>
     (function () {
       var stored = localStorage.getItem("eom.lang");
@@ -39,6 +39,12 @@
             <button class="lang-btn" type="button" data-lang="fa" aria-pressed="false">فارسی</button>
             <button class="lang-btn" type="button" data-lang="en" aria-pressed="true">English</button>
           </div>
+          <label class="token-entry">
+            <span class="sr-only">WSO2 access token / توکن دسترسی</span>
+            <input id="access-token" type="password" dir="ltr" autocomplete="off" spellcheck="false"
+                   placeholder="WSO2 access token / توکن دسترسی">
+          </label>
+          <button class="btn" id="save-token" type="button">Apply token / اعمال توکن</button>
           <span id="health" class="health">Checking</span>
           <button class="btn" id="refresh" type="button">Refresh</button>
           <a class="btn primary" id="new-checkout" href="#/checkout">New checkout</a>
@@ -48,7 +54,7 @@
     </div>
   </div>
   <div id="toast" class="toast" hidden></div>
-  <script src="/assets/i18n.js?v=8"></script>
-  <script src="/assets/console.js?v=8"></script>
+  <script src="/assets/i18n.js?v=9"></script>
+  <script src="/assets/console.js?v=9"></script>
 </body>
 </html>

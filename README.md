@@ -105,7 +105,7 @@ Example checkout request:
 
 ## Run locally
 
-Prepare the packaged application once, then bring PostgreSQL and the application up or down:
+Copy `.env.example` to `.env` and set a strong local `DB_PASSWORD` plus the exact WSO2 issuer/JWKS URLs. The operator desk requires a WSO2 bearer access token; paste it into the token field in the top bar and choose Apply token. The token is kept in session storage only. Prepare the packaged application once, then bring PostgreSQL and the application up or down:
 
     powershell -File docker/prepare.ps1
     docker compose up -d --build
@@ -144,3 +144,27 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [ ] Real payment provider and carrier integrations (require separate credentials, security review, and approval)
 - [x] Scheduled fulfillment recovery for FULFILLMENT_PENDING using persisted address snapshots and exponential retry delay
 - [x] Operator reconciliation for COMPENSATION_REQUIRED when the order is still reserved; a confirmed captured sale is left intact
+
+## Security and WSO2 integration
+
+The API is a Spring Security OAuth2 Resource Server. Security is enabled by default and validates JWT signatures using the configured WSO2 JWKS endpoint, plus issuer, expiry and not-before claims. Configure the exact issuer claim emitted by your WSO2 tenant; do not copy the example blindly.
+
+Required authorities are derived from the JWT `scope` or `scp` claim using Spring Security's standard `SCOPE_` mapping:
+
+| API area | Read scope | Write / operator scope |
+|---|---|---|
+| Customers | `customers.read` | `customers.write` |
+| Products | `catalog.read` | `catalog.write` |
+| Inventory | `inventory.read` | `inventory.write` |
+| Orders | `orders.read` | `orders.write` |
+| Payments | `payments.read` | `payments.write` |
+| Shipments | `shipping.read` | `shipping.write` |
+| Checkouts | `checkout.read` | `checkout.write` |
+| Checkout reconciliation, outbox replay, management metrics | — | `operations.admin` |
+| Outbox inspection | `outbox.read` | `operations.admin` |
+
+All unmatched API paths are denied. Only health and info are public actuator endpoints; health details are not exposed. Swagger is left reachable for the local operator experience; restrict it at the ingress layer or disable it in a production profile if the API contract is sensitive.
+
+Set `WSO2_ISSUER_URI` and `WSO2_JWKS_URI` to the values for the deployed WSO2 Identity Server, and install the correct CA chain in the JVM truststore. `APP_SECURITY_ENABLED=false` is an explicit test-only bypass; never set it in a deployed environment.
+
+Copy `.env.example` to `.env`, replace the local database password and WSO2 endpoints, then run Compose. PostgreSQL and the application ports are bound to loopback; expose them only through an intentionally configured reverse proxy / network policy.

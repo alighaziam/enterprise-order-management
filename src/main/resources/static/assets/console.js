@@ -51,7 +51,8 @@ const state = {
   },
   lang: localStorage.getItem("eom.lang") === "fa" || localStorage.getItem("eom.lang") === "en"
     ? localStorage.getItem("eom.lang")
-    : (navigator.language || "").toLowerCase().startsWith("fa") ? "fa" : "en"
+    : (navigator.language || "").toLowerCase().startsWith("fa") ? "fa" : "en",
+  accessToken: sessionStorage.getItem("eom.accessToken") || ""
 };
 
 function blankList() { return { page: 0, size: 8, q: "", filter: "" }; }
@@ -69,6 +70,14 @@ const view = document.querySelector("#view");
 const nav = document.querySelector("#nav");
 const toast = document.querySelector("#toast");
 
+const accessTokenInput = document.querySelector("#access-token");
+accessTokenInput.value = state.accessToken;
+document.querySelector("#save-token").addEventListener("click", () => {
+  state.accessToken = accessTokenInput.value.trim().replace(/^Bearer\s+/i, "");
+  if (state.accessToken) sessionStorage.setItem("eom.accessToken", state.accessToken);
+  else sessionStorage.removeItem("eom.accessToken");
+  load(true);
+});
 document.querySelector("#refresh").addEventListener("click", () => load(true));
 document.querySelector(".lang").addEventListener("click", (event) => {
   const button = event.target.closest("[data-lang]");
@@ -883,6 +892,7 @@ function esc(value) {
 
 async function api(path, options = {}) {
   const headers = { Accept: "application/json" };
+  if (state.accessToken) headers.Authorization = "Bearer " + state.accessToken;
   const init = { method: options.method || "GET", headers };
   if (options.body !== undefined) {
     headers["Content-Type"] = "application/json";

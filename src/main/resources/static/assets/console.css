@@ -114,7 +114,10 @@ html[dir="rtl"] .nav a.active { box-shadow: inset -2px 0 0 var(--gold); }
   font-family: Palatino, "Palatino Linotype", Georgia, serif;
   font-size: 1.85rem; font-weight: 600; letter-spacing: -0.03em;
 }
-.top-actions { display: flex; gap: 8px; align-items: center; }
+.top-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.token-entry { width: min(240px, 30vw); }
+.token-entry input { padding: 8px 10px; font-size: 0.78rem; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 .lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); }
 .lang-btn { border: 0; background: transparent; padding: 6px 10px; color: var(--muted); }
 .lang-btn.active { background: var(--ink); color: #f6f3ee; }
@@ -228,6 +231,11 @@ textarea { min-height: 72px; resize: vertical; }
   box-shadow: var(--shadow);
 }
 .toast[hidden] { display: none; }
+
+@media (max-width: 760px) {
+  .token-entry { width: 100%; }
+  .top-actions { align-items: stretch; }
+}
 
 @media (max-width: 1080px) {
   .app { grid-template-columns: 1fr; }

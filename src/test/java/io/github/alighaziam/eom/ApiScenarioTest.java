@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "app.security.enabled=false")
 class ApiScenarioTest {
 
     @LocalServerPort private int port;
@@ -55,7 +55,7 @@ class ApiScenarioTest {
         assertTrue(spec.contains("List customers"));
         String health = http.get().uri("/actuator/health").retrieve().body(String.class);
         assertEquals("UP", JsonPath.read(health, "$.status"));
-        assertTrue(health.contains("deadLetters"));
+        assertEquals(false, health.contains("deadLetters"), "Health details must not be public");
 
         RestClientResponseException missing = assertThrows(RestClientResponseException.class,
                 () -> http.get().uri("/missing-page").accept(MediaType.TEXT_HTML).retrieve().toBodilessEntity());

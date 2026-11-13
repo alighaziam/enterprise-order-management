@@ -11,7 +11,15 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${WSO2_ISSUER_URI:https://localhost:9443/oauth2/token}
+          jwk-set-uri: ${WSO2_JWKS_URI:https://localhost:9443/oauth2/jwks}
 app:
+  security:
+    enabled: ${APP_SECURITY_ENABLED:true}
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
   checkout:
@@ -25,7 +33,7 @@ management:
         include: health,info,metrics
   endpoint:
     health:
-      show-details: always
+      show-details: never
 springdoc:
   api-docs:
     path: /v3/api-docs
