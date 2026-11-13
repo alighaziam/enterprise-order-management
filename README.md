@@ -105,7 +105,7 @@ Example checkout request:
 
 ## Run locally
 
-Copy `.env.example` to `.env` and set a strong local `DB_PASSWORD` plus the exact WSO2 issuer/JWKS URLs. Prepare the packaged application once, then bring PostgreSQL and the application up or down:
+Copy `.env.example` to `.env` and set a strong local `DB_PASSWORD` plus the exact WSO2 issuer/JWKS URLs. The operator desk requires a WSO2 bearer access token; paste it into the token field in the top bar and choose Apply token. The token is kept in session storage only. Prepare the packaged application once, then bring PostgreSQL and the application up or down:
 
     powershell -File docker/prepare.ps1
     docker compose up -d --build
