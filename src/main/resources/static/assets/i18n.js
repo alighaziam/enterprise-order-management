@@ -9,6 +9,10 @@ const TEXT = {
     "health.live": "Live",
     "health.offline": "Offline",
     "health.refreshing": "Refreshing",
+    "health.unauthorized": "Sign in",
+    "health.forbidden": "Forbidden",
+    "token.apply": "Apply token",
+    "token.placeholder": "WSO2 access token",
     "nav.desk": "Overview",
     "nav.checkout": "Checkout",
     "nav.customers": "Customers",
@@ -217,6 +221,8 @@ const TEXT = {
     "toast.saved": "Saved.",
     "toast.copied": "Identifier copied.",
     "toast.copyBlocked": "Copy was blocked by the browser.",
+    "toast.unauthorized": "Apply a WSO2 access token to load the desk.",
+    "toast.forbidden": "This token does not include the required scope.",
     "confirm.cancelOrder": "Cancel this order and release its stock?",
     "confirm.void": "Void this authorization?",
     "confirm.refund": "Refund this captured payment?",
@@ -270,6 +276,10 @@ const TEXT = {
     "health.live": "فعال",
     "health.offline": "قطع",
     "health.refreshing": "در حال به‌روزرسانی",
+    "health.unauthorized": "ورود لازم است",
+    "health.forbidden": "دسترسی نیست",
+    "token.apply": "اعمال توکن",
+    "token.placeholder": "توکن دسترسی WSO2",
     "nav.desk": "نمای کلی",
     "nav.checkout": "تسویه",
     "nav.customers": "مشتریان",
@@ -478,6 +488,8 @@ const TEXT = {
     "toast.saved": "ذخیره شد.",
     "toast.copied": "شناسه رونوشت شد.",
     "toast.copyBlocked": "مرورگر رونوشت را مسدود کرد.",
+    "toast.unauthorized": "برای بارگذاری میز، توکن دسترسی WSO2 را وارد کنید.",
+    "toast.forbidden": "این توکن محدودهٔ لازم را ندارد.",
     "confirm.cancelOrder": "این سفارش لغو شود و موجودی آن آزاد شود؟",
     "confirm.void": "این مجوز ابطال شود؟",
     "confirm.refund": "این پرداختِ دریافت‌شده بازپرداخت شود؟",
@@ -545,6 +557,8 @@ function applyLocale() {
   document.querySelector("#legal").textContent = t("legal");
   document.querySelector("#refresh").textContent = t("refresh");
   document.querySelector("#new-checkout").textContent = t("newCheckout");
+  document.querySelector("#save-token").textContent = t("token.apply");
+  document.querySelector("#access-token").placeholder = t("token.placeholder");
   document.querySelectorAll("[data-lang]").forEach((button) => {
     const on = button.dataset.lang === state.lang;
     button.classList.toggle("active", on);

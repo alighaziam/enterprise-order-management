@@ -163,7 +163,7 @@ Required authorities are derived from the JWT `scope` or `scp` claim using Sprin
 | Checkout reconciliation, outbox replay, management metrics | — | `operations.admin` |
 | Outbox inspection | `outbox.read` | `operations.admin` |
 
-All unmatched API paths are denied. Only health and info are public actuator endpoints; health details are not exposed. Swagger is left reachable for the local operator experience; restrict it at the ingress layer or disable it in a production profile if the API contract is sensitive.
+All unmatched API paths are denied. Missing or invalid tokens return HTTP 401, and a valid token without the required scope returns HTTP 403. Both responses use `application/problem+json`. Only health and info are public actuator endpoints; health details are not exposed. Swagger is left reachable for the local operator experience and has an Authorize action for the same bearer token; restrict it at the ingress layer or disable it in a production profile if the API contract is sensitive.
 
 Set `WSO2_ISSUER_URI` and `WSO2_JWKS_URI` to the values for the deployed WSO2 Identity Server, and install the correct CA chain in the JVM truststore. `APP_SECURITY_ENABLED=false` is an explicit test-only bypass; never set it in a deployed environment.
 

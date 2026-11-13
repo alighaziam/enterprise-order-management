@@ -1,7 +1,10 @@
 package io.github.alighaziam.eom;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.tags.Tag;
 import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.context.annotation.Bean;
@@ -18,6 +21,11 @@ class OpenApiConfiguration {
                         .title("Enterprise Order Management")
                         .version("0.1.0")
                         .description("Customers, catalog, inventory, orders, sandbox payments, shipping, checkout, and the transactional outbox."))
+                .components(new Components().addSecuritySchemes("wso2", new SecurityScheme()
+                        .type(SecurityScheme.Type.HTTP)
+                        .scheme("bearer")
+                        .bearerFormat("JWT")
+                        .description("WSO2 access token. Paste the token only; Swagger adds the Bearer prefix.")))
                 .tags(List.of(
                         tag("Customers", "Customer profiles."),
                         tag("Catalog", "Products and prices."),
@@ -34,14 +42,33 @@ class OpenApiConfiguration {
         return openApi -> {
             if (openApi.getPaths() == null) return;
             openApi.getPaths().forEach((path, item) -> item.readOperationsMap().forEach((method, operation) -> {
+                String scope = requiredScope(method.name(), path);
                 operation.setTags(List.of(tagName(path)));
                 operation.setSummary(summary(method.name(), path));
+                operation.setDescription("Requires scope " + scope + ".");
+                operation.setSecurity(List.of(new SecurityRequirement().addList("wso2")));
             }));
         };
     }
 
     private static Tag tag(String name, String description) {
         return new Tag().name(name).description(description);
+    }
+
+    private static String requiredScope(String method, String path) {
+        if (path.contains("/reconcile") || path.endsWith("/replay") || (path.contains("/outbox") && !"GET".equals(method))) {
+            return "operations.admin";
+        }
+        if (path.contains("/outbox")) return "outbox.read";
+        boolean read = "GET".equals(method);
+        if (path.contains("/customers")) return read ? "customers.read" : "customers.write";
+        if (path.contains("/products")) return read ? "catalog.read" : "catalog.write";
+        if (path.contains("/inventory")) return read ? "inventory.read" : "inventory.write";
+        if (path.contains("/orders")) return read ? "orders.read" : "orders.write";
+        if (path.contains("/payments")) return read ? "payments.read" : "payments.write";
+        if (path.contains("/shipments")) return read ? "shipping.read" : "shipping.write";
+        if (path.contains("/checkouts")) return read ? "checkout.read" : "checkout.write";
+        return "operations.admin";
     }
 
     private static String tagName(String path) {

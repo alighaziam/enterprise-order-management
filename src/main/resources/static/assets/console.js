@@ -52,7 +52,8 @@ const state = {
   lang: localStorage.getItem("eom.lang") === "fa" || localStorage.getItem("eom.lang") === "en"
     ? localStorage.getItem("eom.lang")
     : (navigator.language || "").toLowerCase().startsWith("fa") ? "fa" : "en",
-  accessToken: sessionStorage.getItem("eom.accessToken") || ""
+  accessToken: sessionStorage.getItem("eom.accessToken") || "",
+  auth: null
 };
 
 function blankList() { return { page: 0, size: 8, q: "", filter: "" }; }
@@ -134,6 +135,7 @@ async function load(announce) {
   const healthChip = document.querySelector("#health");
   healthChip.textContent = t("health.refreshing");
   healthChip.className = "health";
+  state.auth = null;
   try {
     const [customers, products, stock, orders, payments, shipments, checkouts, events, health, customerChoices, productChoices, stockChoices] = await Promise.all([
       api(listUrl("customers")),
@@ -167,6 +169,7 @@ async function load(announce) {
     if (!state.draft.customerId && state.customers[0]) state.draft.customerId = state.customers[0].id;
     if (announce) notify(t("toast.refreshed"));
   } catch (error) {
+    state.auth = error.status === 401 ? 401 : error.status === 403 ? 403 : null;
     notify(error.message);
   }
   state.busy = false;
@@ -179,8 +182,8 @@ function paint() {
   document.querySelector("#title").textContent = t(title);
   const health = document.querySelector("#health");
   const live = state.health?.status === "UP";
-  health.textContent = live ? t("health.live") : t("health.offline");
-  health.className = live ? "health up" : "health down";
+  health.textContent = state.auth === 401 ? t("health.unauthorized") : state.auth === 403 ? t("health.forbidden") : live ? t("health.live") : t("health.offline");
+  health.className = live && !state.auth ? "health up" : "health down";
   const pages = { desk: desk, checkout: checkout, customers: customers, catalog: catalog, inventory: inventory, orders: orders, payments: payments, shipments: shipments, outbox: outbox };
   const search = state.route === "checkout" ? "" : searchBox();
   view.innerHTML = search + pages[state.route]() + inspector();
@@ -901,7 +904,13 @@ async function api(path, options = {}) {
   const response = await fetch(path, init);
   const text = await response.text();
   const body = text ? JSON.parse(text) : null;
-  if (!response.ok) throw new Error(body?.detail || body?.title || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const error = new Error(response.status === 401 ? t("toast.unauthorized")
+        : response.status === 403 ? t("toast.forbidden")
+        : (body?.detail || body?.title || `Request failed (${response.status})`));
+    error.status = response.status;
+    throw error;
+  }
   return body;
 }
 

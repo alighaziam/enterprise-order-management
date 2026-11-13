@@ -117,19 +117,18 @@ Use this query for inspection only. Do not manually mark events published or rep
 - **Resilience:** retries, leases, dead-letter state, idempotency keys, and fulfillment recovery cover selected failure modes.
 - **Maintainability:** module ownership and Spring Modulith checks discourage accidental coupling.
 - **Scalability:** database-backed relay claims can be shared by multiple application instances, but throughput and ordering guarantees have not been benchmarked.
-- **Operability:** dead-letter rows and compensation-required workflows are persisted, but dashboards, alerts, replay UI, and operator workflows are not implemented.
-- **Security:** no real payment credentials or cardholder data are used; production authentication, authorization, secrets management, and threat-model review remain deployment concerns.
+- **Operability:** the operator desk can page live records, reconcile compensation, and replay dead letters. Alerts and an audit trail of operator actions are not implemented.
+- **Security:** the API is an OAuth2 resource server for WSO2 access tokens and scope checks. No real payment credentials or cardholder data are used. Rate limiting, secret rotation, and a deployment threat-model review remain open.
 
 ## 8. Deliberate non-goals / production gaps
 
 This repository is a portfolio-grade reference implementation, **not a production-ready commerce platform**. Before production use, address at least:
 
 1. Real PSP/carrier adapters with provider-side outcome reconciliation and security review.
-2. Operator reconciliation and audited dead-letter replay tooling.
+2. An audit trail for operator reconciliation and dead-letter replay.
 3. Metrics, tracing, alerting, and runbooks for relay lag, retries, DLQ, and saga age.
-4. Explicit per-aggregate ordering policy if consumers require it.
-5. Load, soak, concurrency, and multi-instance failure testing under realistic workload.
-6. Authentication/authorization, rate limiting, secret rotation, privacy/data-retention review, and deployment hardening.
+4. Load, soak, concurrency, and multi-instance failure testing under realistic workload.
+5. Rate limiting, secret rotation, privacy/data-retention review, and deployment hardening.
 
 ## 9. Key decisions
 

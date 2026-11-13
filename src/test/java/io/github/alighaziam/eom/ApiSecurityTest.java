@@ -2,6 +2,7 @@ package io.github.alighaziam.eom;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -47,6 +48,8 @@ class ApiSecurityTest {
         RestClientResponseException response = assertThrows(RestClientResponseException.class,
                 () -> http.get().uri("/api/v1/customers").retrieve().toBodilessEntity());
         assertEquals(401, response.getStatusCode().value());
+        assertTrue(response.getResponseBodyAsString().contains("\"status\":401"));
+        assertTrue(response.getResponseBodyAsString().contains("Authentication is required."));
     }
 
     @Test
@@ -56,6 +59,7 @@ class ApiSecurityTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer orders-token")
                         .retrieve().toBodilessEntity());
         assertEquals(403, response.getStatusCode().value());
+        assertTrue(response.getResponseBodyAsString().contains("required scope"));
     }
 
     @Test
