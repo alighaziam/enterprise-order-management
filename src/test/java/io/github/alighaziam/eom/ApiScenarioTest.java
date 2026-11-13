@@ -55,7 +55,6 @@ class ApiScenarioTest {
         assertTrue(spec.contains("List customers"));
         String health = http.get().uri("/actuator/health").retrieve().body(String.class);
         assertEquals("UP", JsonPath.read(health, "$.status"));
-        assertEquals("UP", JsonPath.read(health, "$.status"));
         assertEquals(false, health.contains("deadLetters"), "Health details must not be public");
 
         RestClientResponseException missing = assertThrows(RestClientResponseException.class,
