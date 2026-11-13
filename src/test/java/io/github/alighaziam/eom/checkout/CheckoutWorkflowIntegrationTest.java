@@ -49,5 +49,13 @@ class CheckoutWorkflowIntegrationTest {
         assertEquals(result.orderId(), replay.orderId());
         assertEquals(3, inventory.find(product.id()).onHandQuantity(),
                 "A replay must not reserve stock or create a second order");
+
+        var differentRequest = new CheckoutOperations.CheckoutRequest(customer.id(),
+                request.lines(),
+                new DeliveryAddress("Different Recipient", "Other Street 9", null, "Berlin", "10117", "DE", "+491111111"),
+                request.idempotencyKey());
+        assertThrows(IllegalStateException.class, () -> checkout.checkout(differentRequest),
+                "Reusing a key with a different payload must be rejected");
+        assertEquals(3, inventory.find(product.id()).onHandQuantity());
     }
 }
