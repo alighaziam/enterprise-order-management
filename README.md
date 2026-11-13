@@ -168,3 +168,10 @@ All unmatched API paths are denied. Only health and info are public actuator end
 Set `WSO2_ISSUER_URI` and `WSO2_JWKS_URI` to the values for the deployed WSO2 Identity Server, and install the correct CA chain in the JVM truststore. `APP_SECURITY_ENABLED=false` is an explicit test-only bypass; never set it in a deployed environment.
 
 Copy `.env.example` to `.env`, replace the local database password and WSO2 endpoints, then run Compose. PostgreSQL and the application ports are bound to loopback; expose them only through an intentionally configured reverse proxy / network policy.
+
+
+### Checkout idempotency and transaction boundaries
+
+Checkout first reserves inventory, creates the order/workflow and appends `CheckoutStarted` in one short database transaction. The workflow's unique idempotency-key constraint is the final concurrency arbiter: a competing request that loses the insert race rolls back its local order and inventory reservation and returns the winner's workflow. Payment authorization/capture and shipping provider calls execute after the reservation transaction commits, so remote network calls do not hold a database transaction open.
+
+Each new idempotency key is stored with a SHA-256 fingerprint of the customer, ordered line items and delivery address. Replaying the same key with the same request returns the original workflow; reusing it with a different request returns HTTP 409. Existing workflows migrated with the `legacy` fingerprint retain backward-compatible replay behavior.
