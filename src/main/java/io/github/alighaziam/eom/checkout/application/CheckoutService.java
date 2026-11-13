@@ -9,9 +9,10 @@ import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.check
  try {
   reservation=reservations.reserve(r);
  } catch (org.springframework.dao.DataIntegrityViolationException concurrentDuplicate) {
-  return workflows.findByIdempotencyKey(r.idempotencyKey())
-   .map(CheckoutWorkflowEntity::toResult)
+  var winner=workflows.findByIdempotencyKey(r.idempotencyKey())
    .orElseThrow(() -> concurrentDuplicate);
+  reservations.validateReplay(winner,r);
+  return winner.toResult();
  }
  CheckoutWorkflowEntity w=reservation.workflow();
  if(!reservation.created()) return w.toResult();
