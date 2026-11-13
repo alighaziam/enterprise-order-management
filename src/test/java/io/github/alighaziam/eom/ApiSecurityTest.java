@@ -9,7 +9,6 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpHeaders;
@@ -31,9 +30,6 @@ class ApiSecurityTest {
     @LocalServerPort
     private int port;
 
-    @Autowired
-    private RestClient.Builder restClientBuilder;
-
     @MockitoBean
     private JwtDecoder jwtDecoder;
 
@@ -41,7 +37,7 @@ class ApiSecurityTest {
 
     @BeforeEach
     void setUp() {
-        http = restClientBuilder.baseUrl("http://localhost:" + port).build();
+        http = RestClient.builder().baseUrl("http://localhost:" + port).build();
         when(jwtDecoder.decode("orders-token")).thenReturn(jwt("orders-token", "orders.read"));
         when(jwtDecoder.decode("customers-token")).thenReturn(jwt("customers-token", "customers.read"));
     }
