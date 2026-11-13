@@ -73,7 +73,7 @@ const toast = document.querySelector("#toast");
 const accessTokenInput = document.querySelector("#access-token");
 accessTokenInput.value = state.accessToken;
 document.querySelector("#save-token").addEventListener("click", () => {
-  state.accessToken = accessTokenInput.value.trim().replace(/^Bearer\\s+/i, "");
+  state.accessToken = accessTokenInput.value.trim().replace(/^Bearer\s+/i, "");
   if (state.accessToken) sessionStorage.setItem("eom.accessToken", state.accessToken);
   else sessionStorage.removeItem("eom.accessToken");
   load(true);
