@@ -1,16 +1,16 @@
 services:
   postgres:
-    image: postgres:18
+    image: postgres:17
     environment:
       POSTGRES_DB: enterprise_order_management
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: app
+      POSTGRES_USER: ${DB_USERNAME:-app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U app -d enterprise_order_management"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-app} -d enterprise_order_management"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -22,10 +22,13 @@ services:
         condition: service_healthy
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/enterprise_order_management
-      DB_USERNAME: app
-      DB_PASSWORD: app
+      DB_USERNAME: ${DB_USERNAME:-app}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      APP_SECURITY_ENABLED: ${APP_SECURITY_ENABLED:-true}
+      WSO2_ISSUER_URI: ${WSO2_ISSUER_URI:?Set WSO2_ISSUER_URI in .env}
+      WSO2_JWKS_URI: ${WSO2_JWKS_URI:?Set WSO2_JWKS_URI in .env}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
 
 volumes:
   postgres_data:
