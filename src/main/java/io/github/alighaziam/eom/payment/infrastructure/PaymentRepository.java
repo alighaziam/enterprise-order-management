@@ -42,6 +42,11 @@ public interface PaymentRepository extends JpaRepository<PaymentIntentEntity, UU
 
     boolean existsByOrderIdAndStatusIn(UUID orderId, Collection<PaymentStatus> statuses);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from PaymentIntentEntity p where p.orderId = :orderId and p.status in :statuses")
+    Optional<PaymentIntentEntity> findActiveByOrderIdForUpdate(
+            @Param("orderId") UUID orderId, @Param("statuses") Collection<PaymentStatus> statuses);
+
     List<PaymentIntentEntity> findTop40ByOrderByCreatedAtDesc();
 
     @Query("""
