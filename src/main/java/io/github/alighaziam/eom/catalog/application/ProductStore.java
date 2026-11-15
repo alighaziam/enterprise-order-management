@@ -8,6 +8,7 @@ import java.util.UUID;
 public interface ProductStore {
  Product save(Product product);
  Optional<Product> findById(UUID id);
+ Optional<Product> findByIdForUpdate(UUID id);
  List<Product> findRecent();
  boolean existsBySku(String sku);
  Page<Product> search(String q, Boolean active, Pageable pageable);
