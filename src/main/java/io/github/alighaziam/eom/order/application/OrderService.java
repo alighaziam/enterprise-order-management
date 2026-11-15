@@ -192,9 +192,9 @@ public class OrderService implements OrderOperations {
     }
 
     @Override
-    public OrderPaymentDetails paymentDetails(UUID id) {
+    public OrderDetails orderDetails(UUID id) {
         Order order = findForUpdate(id);
-        return new OrderPaymentDetails(order.id(), order.totalAmount(), order.currency(),
+        return new OrderDetails(order.id(), order.totalAmount(), order.currency(),
                 OrderState.valueOf(order.status().name()));
     }
 
