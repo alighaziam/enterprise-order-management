@@ -64,6 +64,13 @@ class CheckoutWorkflowIntegrationTest {
         assertEquals(List.of(1L, 2L, 3L, 4L, 5L),
                 workflowEvents.stream().map(OutboxEntity::getAggregateVersion).toList());
 
+        List<OutboxEntity> orderEvents = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
+                "Order", result.orderId().toString());
+        assertEquals(List.of("OrderPlaced", "OrderConfirmed"),
+                orderEvents.stream().map(OutboxEntity::getEventType).toList());
+        assertEquals(List.of(1L, 2L),
+                orderEvents.stream().map(OutboxEntity::getAggregateVersion).toList());
+
         var replay = checkout.checkout(request);
         assertEquals(result.workflowId(), replay.workflowId());
         assertEquals(result.orderId(), replay.orderId());
