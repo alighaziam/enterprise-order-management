@@ -754,6 +754,12 @@ function checkoutProblems(draft, priced) {
   const problems = [];
   if (!draft.customerId) problems.push(t("problem.customer"));
   if (!priced.length) problems.push(t("problem.product"));
+  if (priced.some((line) => !Number.isInteger(Number(line.quantity)) || Number(line.quantity) < 1)) {
+    problems.push(t("problem.quantity"));
+  }
+  if (new Set(priced.map((line) => line.product.currency)).size > 1) {
+    problems.push(t("problem.currency"));
+  }
   if (shortages(priced).length) problems.push(t("problem.stock"));
   if (!draft.recipientName.trim()) problems.push(t("problem.recipient"));
   if (!draft.addressLine1.trim()) problems.push(t("problem.address"));
