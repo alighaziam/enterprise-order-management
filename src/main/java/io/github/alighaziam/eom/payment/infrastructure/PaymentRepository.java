@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,6 +33,8 @@ public interface PaymentRepository extends JpaRepository<PaymentIntentEntity, UU
                        @Param("now") Instant now);
 
     Optional<PaymentIntentEntity> findByIdempotencyKey(String idempotencyKey);
+
+    boolean existsByOrderIdAndStatusIn(UUID orderId, Collection<PaymentStatus> statuses);
 
     List<PaymentIntentEntity> findTop40ByOrderByCreatedAtDesc();
 
