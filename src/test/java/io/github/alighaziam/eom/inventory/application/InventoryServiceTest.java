@@ -62,6 +62,18 @@ class InventoryServiceTest {
     }
 
     @Test
+    void stockAdjustmentCannotReduceOnHandBelowActiveReservations() {
+        InventoryService service = new InventoryService(new InMemoryStore());
+        UUID productId = UUID.randomUUID();
+        service.initializeStock(productId, 10);
+        service.reserve(productId, 4);
+
+        assertThrows(IllegalStateException.class, () -> service.setOnHand(productId, 3));
+        assertEquals(8, service.setOnHand(productId, 8).onHandQuantity());
+        assertEquals(4, service.find(productId).availableQuantity());
+    }
+
+    @Test
     void rejectsInsufficientAndNonPositiveReservations() {
         InventoryService service = new InventoryService(new InMemoryStore());
         UUID productId = UUID.randomUUID();
