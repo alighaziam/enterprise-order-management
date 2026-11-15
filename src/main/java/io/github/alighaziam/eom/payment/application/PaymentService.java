@@ -12,9 +12,9 @@ import org.springframework.data.domain.Sort; import org.springframework.stereoty
   var replay=repository.findByIdempotencyKey(key);
   if(replay.isPresent()) return validateReplay(replay.get(),orderId,amount,currency);
 
-  OrderOperations.OrderPaymentDetails order;
+  OrderOperations.OrderDetails order;
   try {
-   order=orders.paymentDetails(orderId);
+   order=orders.orderDetails(orderId);
   } catch (OrderNotFoundException missing) {
    throw new IllegalArgumentException("Order does not exist: " + orderId,missing);
   }
