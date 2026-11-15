@@ -37,7 +37,7 @@ public class CustomerService {
   }
  }
  public Customer setActive(UUID id, boolean active) {
-  Customer current = required(id);
+  Customer current = requiredForUpdate(id);
   return customerStore.save(new Customer(current.id(), current.fullName(), current.email(), active, current.createdAt()));
  }
  @Transactional(readOnly = true)
