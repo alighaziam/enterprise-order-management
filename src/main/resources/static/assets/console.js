@@ -35,6 +35,7 @@ const state = {
   route: "desk",
   customers: [], products: [], stock: [], orders: [],
   payments: [], shipments: [], checkouts: [], events: [], health: null,
+  attention: [], reservedOrders: [], deadLetters: [],
   draft: emptyDraft(),
   busy: false,
   query: "",
@@ -137,7 +138,12 @@ async function load(announce) {
   healthChip.className = "health";
   state.auth = null;
   try {
-    const [customers, products, stock, orders, payments, shipments, checkouts, events, health, customerChoices, productChoices, stockChoices] = await Promise.all([
+    const query = state.query ? `&q=${encodeURIComponent(state.query)}` : "";
+    const [
+      customers, products, stock, orders, payments, shipments, checkouts, events, health,
+      customerChoices, productChoices, stockChoices,
+      compensationCheckouts, pendingCheckouts, reservedOrders, deadLetters
+    ] = await Promise.all([
       api(listUrl("customers")),
       api(listUrl("products")),
       api(listUrl("inventory")),
@@ -149,7 +155,11 @@ async function load(announce) {
       api("/actuator/health").catch(() => null),
       api("/api/v1/customers?page=0&size=100&active=true"),
       api("/api/v1/products?page=0&size=100&active=true"),
-      api("/api/v1/inventory?page=0&size=100")
+      api("/api/v1/inventory?page=0&size=100"),
+      api(`/api/v1/checkouts?page=0&size=100&status=COMPENSATION_REQUIRED${query}`),
+      api(`/api/v1/checkouts?page=0&size=100&status=FULFILLMENT_PENDING${query}`),
+      api(`/api/v1/orders?page=0&size=100&status=RESERVED${query}`),
+      api(`/api/v1/outbox/events?page=0&size=100&state=dead${query}`)
     ]);
     state.rows = {
       customers: customers.content, products: products.content, inventory: stock.content,
@@ -165,6 +175,12 @@ async function load(announce) {
     state.shipments = shipments.content;
     state.checkouts = checkouts.content;
     state.events = events.content;
+    state.attention = [...compensationCheckouts.content, ...pendingCheckouts.content];
+    state.reservedOrders = reservedOrders.content;
+    state.deadLetters = deadLetters.content;
+    state.meta.attention = compensationCheckouts.totalElements + pendingCheckouts.totalElements;
+    state.meta.reservedOrders = reservedOrders.totalElements;
+    state.meta.deadLetters = deadLetters.totalElements;
     state.health = health;
     if (!state.draft.customerId && state.customers[0]) state.draft.customerId = state.customers[0].id;
     if (announce) notify(t("toast.refreshed"));
@@ -190,16 +206,16 @@ function paint() {
 }
 
 function desk() {
-  const attention = state.checkouts.filter((item) => item.status === "COMPENSATION_REQUIRED" || item.status === "FULFILLMENT_PENDING");
-  const dead = state.events.filter((item) => item.deadLetteredAt);
-  const reserved = state.orders.filter((item) => item.status === "RESERVED");
+  const attention = state.attention;
+  const dead = state.deadLetters;
+  const reserved = state.reservedOrders;
   return `
     <p class="lede">${esc(t("lede.desk"))}</p>
     <section class="grid metrics">
       ${metric(t("metric.checkouts"), state.meta.checkouts?.totalElements ?? state.checkouts.length, t("pager.status", { page: (state.meta.checkouts?.number || 0) + 1, pages: state.meta.checkouts?.totalPages || 1, total: state.meta.checkouts?.totalElements || 0 }))}
-      ${metric(t("metric.attention"), state.checkouts.filter((item) => item.status === "COMPENSATION_REQUIRED" || item.status === "FULFILLMENT_PENDING").length, t("metric.attentionNote"))}
-      ${metric(t("metric.reserved"), reserved.length, t("metric.reservedNote"))}
-      ${metric(t("metric.dead"), dead.length, t("metric.deadNote"))}
+      ${metric(t("metric.attention"), state.meta.attention ?? attention.length, t("metric.attentionNote"))}
+      ${metric(t("metric.reserved"), state.meta.reservedOrders ?? reserved.length, t("metric.reservedNote"))}
+      ${metric(t("metric.dead"), state.meta.deadLetters ?? dead.length, t("metric.deadNote"))}
     </section>
     <section class="grid split" style="margin-top:16px">
       <article class="card">
