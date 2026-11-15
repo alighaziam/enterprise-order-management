@@ -8,6 +8,8 @@ import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowEntity;
 import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowRepository;
 import io.github.alighaziam.eom.shipping.DeliveryAddress;
 import io.github.alighaziam.eom.shipping.ShippingOperations;
+import io.github.alighaziam.eom.outbox.infrastructure.OutboxEntity;
+import io.github.alighaziam.eom.outbox.infrastructure.OutboxRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,6 +29,7 @@ class CheckoutWorkflowIntegrationTest {
     @Autowired ShippingOperations shipping;
     @Autowired CheckoutWorkflowRepository workflows;
     @Autowired CheckoutFulfillmentClaimService fulfillmentClaims;
+    @Autowired OutboxRepository outbox;
 
     @Test
     void completesSandboxCheckoutAndPersistsWorkflowAndShipment() {
@@ -48,6 +51,18 @@ class CheckoutWorkflowIntegrationTest {
         assertEquals(3, inventory.find(product.id()).onHandQuantity());
         assertEquals(result.orderId(), shipping.get(result.shipmentId()).orderId());
         assertEquals(CheckoutStatus.COMPLETED, checkout.get(result.workflowId()).status());
+
+        List<OutboxEntity> workflowEvents = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
+                "CheckoutWorkflow", result.workflowId().toString());
+        assertEquals(List.of(
+                "CheckoutStarted",
+                "CheckoutPAYMENT_AUTHORIZED",
+                "CheckoutPAYMENT_CAPTURED",
+                "CheckoutORDER_CONFIRMED",
+                "CheckoutCompleted"),
+                workflowEvents.stream().map(OutboxEntity::getEventType).toList());
+        assertEquals(List.of(1L, 2L, 3L, 4L, 5L),
+                workflowEvents.stream().map(OutboxEntity::getAggregateVersion).toList());
 
         var replay = checkout.checkout(request);
         assertEquals(result.workflowId(), replay.workflowId());
