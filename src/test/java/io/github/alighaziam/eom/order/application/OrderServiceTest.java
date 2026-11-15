@@ -77,6 +77,31 @@ class OrderServiceTest {
     }
 
     @Test
+    void doesNotReleaseStockWhenAnActivePaymentBlocksCancellation() {
+        UUID product = UUID.randomUUID();
+        UUID reservation = UUID.randomUUID();
+        InMemoryStore store = new InMemoryStore();
+        InventoryOperations inventory = mock(InventoryOperations.class);
+        OutboxOperations outbox = mock(OutboxOperations.class);
+        OrderCancellationGuard guard = mock(OrderCancellationGuard.class);
+        when(inventory.reserve(product, 1)).thenReturn(reservation);
+        when(guard.assertCanCancel(any())).thenThrow(
+                new IllegalStateException("An active payment exists."));
+        CatalogOperations catalog = id -> Optional.of(new CatalogProduct(
+                product, "SKU-3", "Monitor", new BigDecimal("100.00"), "EUR", true));
+
+        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, guard);
+        Order order = service.place(UUID.randomUUID(),
+                List.of(new OrderService.OrderRequestLine(product, 1)));
+
+        assertThrows(IllegalStateException.class, () -> service.cancel(order.id()));
+        verify(inventory, never()).release(reservation);
+        verify(guard).assertCanCancel(order.id());
+        verify(outbox, never()).append(eq("OrderCancelled"), anyString(), anyString(),
+                anyLong(), anyString(), any(), anyString());
+    }
+
+    @Test
     void rejectsMixedCurrencyAndDuplicateProductLinesBeforePersisting() {
         UUID first = UUID.randomUUID();
         UUID second = UUID.randomUUID();
