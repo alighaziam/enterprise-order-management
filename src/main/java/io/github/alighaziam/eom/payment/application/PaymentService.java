@@ -1,13 +1,27 @@
 package io.github.alighaziam.eom.payment.application;
-import io.github.alighaziam.eom.outbox.OutboxOperations; import io.github.alighaziam.eom.payment.*; import io.github.alighaziam.eom.payment.infrastructure.*; import org.springframework.data.domain.Page;
+import io.github.alighaziam.eom.order.OrderOperations; import io.github.alighaziam.eom.order.OrderState; import io.github.alighaziam.eom.order.application.OrderNotFoundException; import io.github.alighaziam.eom.outbox.OutboxOperations; import io.github.alighaziam.eom.payment.*; import io.github.alighaziam.eom.payment.infrastructure.*; import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional; import java.math.BigDecimal; import java.time.Instant; import java.util.List; import java.util.UUID;
 @Service public class PaymentService implements PaymentOperations {
- private final PaymentRepository repository; private final SandboxPaymentGateway gateway; private final OutboxOperations outbox;
- public PaymentService(PaymentRepository r,SandboxPaymentGateway g,OutboxOperations o){repository=r;gateway=g;outbox=o;}
+ private final PaymentRepository repository; private final SandboxPaymentGateway gateway; private final OutboxOperations outbox; private final OrderOperations orders;
+ public PaymentService(PaymentRepository r,SandboxPaymentGateway g,OutboxOperations o,OrderOperations orders){repository=r;gateway=g;outbox=o;this.orders=orders;}
  @Transactional public PaymentIntent authorize(UUID orderId,BigDecimal amount,String currency,String key){
   if(orderId==null||amount==null||amount.signum()<=0||currency==null||!currency.matches("[A-Z]{3}")||key==null||key.isBlank()||key.length()>120)
    throw new IllegalArgumentException("Order, positive amount, ISO currency, and idempotency key are required.");
+
+  var replay=repository.findByIdempotencyKey(key);
+  if(replay.isPresent()) return validateReplay(replay.get(),orderId,amount,currency);
+
+  OrderOperations.OrderPaymentDetails order;
+  try {
+   order=orders.paymentDetails(orderId);
+  } catch (OrderNotFoundException missing) {
+   throw new IllegalArgumentException("Order does not exist: " + orderId,missing);
+  }
+  if(order.state()!=OrderState.RESERVED)
+   throw new IllegalStateException("Payment can only be authorized for a reserved order.");
+  if(order.totalAmount().compareTo(amount)!=0 || !order.currency().equals(currency))
+   throw new IllegalArgumentException("Payment amount and currency must match the order total.");
 
   UUID id=UUID.randomUUID();
   Instant now=Instant.now();
@@ -15,12 +29,7 @@ import org.springframework.data.domain.Sort; import org.springframework.stereoty
   if(inserted==0){
    var existing=repository.findByIdempotencyKey(key)
     .orElseThrow(()->new IllegalStateException("Payment idempotency claim could not be resolved."));
-   var previous=existing.toDomain();
-   if(!previous.orderId().equals(orderId)||previous.amount().compareTo(amount)!=0||!previous.currency().equals(currency))
-    throw new IllegalStateException("Idempotency key reused with different payment details.");
-   if(previous.status()==PaymentStatus.REQUESTED)
-    throw new IllegalStateException("Payment authorization is already being processed.");
-   return previous;
+   return validateReplay(existing,orderId,amount,currency);
   }
 
   var entity=repository.findById(id)
@@ -40,6 +49,14 @@ import org.springframework.data.domain.Sort; import org.springframework.stereoty
  @Transactional(readOnly=true) public Page<PaymentIntent> search(String q, String status, int page, int size){
   PaymentStatus parsed=status==null||status.isBlank()?null:PaymentStatus.valueOf(status);
   return repository.search(q==null||q.isBlank()?null:q.trim(), parsed, PageRequest.of(Math.max(page,0), Math.min(Math.max(size,1),100), Sort.by(Sort.Direction.DESC,"createdAt"))).map(PaymentIntentEntity::toDomain);
+ }
+ private PaymentIntent validateReplay(PaymentIntentEntity entity,UUID orderId,BigDecimal amount,String currency){
+  var previous=entity.toDomain();
+  if(!previous.orderId().equals(orderId)||previous.amount().compareTo(amount)!=0||!previous.currency().equals(currency))
+   throw new IllegalStateException("Idempotency key reused with different payment details.");
+  if(previous.status()==PaymentStatus.REQUESTED)
+   throw new IllegalStateException("Payment authorization is already being processed.");
+  return previous;
  }
  private PaymentIntentEntity find(UUID id){return repository.findById(id).orElseThrow(()->new PaymentNotFoundException(id));}
 }
