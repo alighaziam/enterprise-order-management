@@ -39,10 +39,12 @@ class CheckoutWorkflowIntegrationTest {
                 new BigDecimal("12.50"), "EUR");
         inventory.initializeStock(product.id(), 5);
 
+        String checkoutKeyPrefix = "checkout-" + suffix;
+        String checkoutKey = checkoutKeyPrefix + "x".repeat(120 - checkoutKeyPrefix.length());
         var request = new CheckoutOperations.CheckoutRequest(customer.id(),
                 List.of(new io.github.alighaziam.eom.order.OrderOperations.OrderLineRequest(product.id(), 2)),
                 new DeliveryAddress("Recipient", "Main Street 1", null, "Berlin", "10115", "DE", "+491234567"),
-                "checkout-test-" + suffix);
+                checkoutKey);
         var result = checkout.checkout(request);
 
         assertEquals(CheckoutStatus.COMPLETED, result.status());
