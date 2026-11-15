@@ -10,6 +10,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -34,8 +35,8 @@ class PaymentIdempotencyIntegrationTest {
         UUID orderId = UUID.randomUUID();
         String key = "parallel-payment-" + UUID.randomUUID();
         BigDecimal amount = new BigDecimal("42.50");
-        when(orders.orderDetails(orderId)).thenReturn(
-                new OrderOperations.OrderDetails(orderId, amount, "EUR", OrderState.RESERVED));
+        when(orders.orderDetails(orderId)).thenReturn(Optional.of(
+                new OrderOperations.OrderDetails(orderId, amount, "EUR", OrderState.RESERVED)));
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
 
@@ -83,7 +84,7 @@ class PaymentIdempotencyIntegrationTest {
     void rejectsAuthorizationForAnOrderThatIsNoLongerReserved() {
         UUID orderId = UUID.randomUUID();
         when(orders.paymentDetails(orderId)).thenReturn(
-                new OrderOperations.OrderPaymentDetails(orderId, new BigDecimal("25.00"), "EUR", OrderState.CONFIRMED));
+                new OrderOperations.OrderPaymentDetails(orderId, new BigDecimal("25.00"), "EUR", OrderState.CONFIRMED)));
 
         assertThrows(IllegalStateException.class, () ->
                 payments.authorize(orderId, new BigDecimal("25.00"), "EUR", "confirmed-" + UUID.randomUUID()));
