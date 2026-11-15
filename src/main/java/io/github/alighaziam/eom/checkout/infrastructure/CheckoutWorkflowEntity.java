@@ -72,6 +72,9 @@ public class CheckoutWorkflowEntity {
     @Column(name = "fulfillment_attempts", nullable = false)
     private int fulfillmentAttempts;
 
+    @Column(name = "event_version", nullable = false)
+    private long eventVersion;
+
     @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
 
@@ -95,6 +98,7 @@ public class CheckoutWorkflowEntity {
         this.idempotencyKey = key;
         this.requestFingerprint = fingerprint;
         this.status = CheckoutStatus.ORDER_RESERVED;
+        this.eventVersion = 1;
         this.createdAt = now;
         this.updatedAt = now;
         this.recipientName = address.recipientName();
@@ -109,6 +113,7 @@ public class CheckoutWorkflowEntity {
     public void payment(UUID id, CheckoutStatus nextStatus, Instant now) {
         paymentId = id;
         status = nextStatus;
+        eventVersion++;
         updatedAt = now;
     }
 
@@ -118,12 +123,14 @@ public class CheckoutWorkflowEntity {
         lastError = null;
         nextAttemptAt = null;
         clearFulfillmentLease();
+        eventVersion++;
         updatedAt = now;
     }
 
     public void status(CheckoutStatus nextStatus, String error, Instant now) {
         status = nextStatus;
         lastError = truncate(error);
+        eventVersion++;
         updatedAt = now;
     }
 
@@ -134,6 +141,7 @@ public class CheckoutWorkflowEntity {
         long delay = Math.min(3600L, 1L << Math.min(fulfillmentAttempts, 12));
         nextAttemptAt = now.plusSeconds(delay);
         clearFulfillmentLease();
+        eventVersion++;
         updatedAt = now;
     }
 
@@ -145,6 +153,7 @@ public class CheckoutWorkflowEntity {
     public UUID getOrderId() { return orderId; }
     public String getRequestFingerprint() { return requestFingerprint; }
     public UUID getPaymentId() { return paymentId; }
+    public long getEventVersion() { return eventVersion; }
     public CheckoutStatus getStatus() { return status; }
     public String getFulfillmentLockedBy() { return fulfillmentLockedBy; }
     public Instant getFulfillmentLeaseUntil() { return fulfillmentLeaseUntil; }
