@@ -64,7 +64,7 @@ public class ShippingService implements ShippingOperations {
     @Override
     @Transactional
     public Shipment updateStatus(UUID id, ShipmentStatus next) {
-        ShipmentEntity entity = repository.findById(id).orElseThrow(() -> new ShipmentNotFoundException(id));
+        ShipmentEntity entity = repository.findByIdForUpdate(id).orElseThrow(() -> new ShipmentNotFoundException(id));
         ShipmentStatus current = entity.toDomain().status();
         if (current == next) {
             return entity.toDomain();
