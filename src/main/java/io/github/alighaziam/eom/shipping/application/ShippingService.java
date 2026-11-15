@@ -2,7 +2,6 @@ package io.github.alighaziam.eom.shipping.application;
 
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
-import io.github.alighaziam.eom.order.application.OrderNotFoundException;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
 import io.github.alighaziam.eom.shipping.DeliveryAddress;
 import io.github.alighaziam.eom.shipping.Shipment;
@@ -38,12 +37,8 @@ public class ShippingService implements ShippingOperations {
     public Shipment create(UUID orderId, DeliveryAddress address) {
         validate(orderId, address);
 
-        OrderOperations.OrderDetails order;
-        try {
-            order = orders.orderDetails(orderId);
-        } catch (OrderNotFoundException missing) {
-            throw new IllegalArgumentException("Order does not exist: " + orderId, missing);
-        }
+        OrderOperations.OrderDetails order = orders.orderDetails(orderId)
+                .orElseThrow(() -> new IllegalArgumentException("Order does not exist: " + orderId));
         if (order.state() != OrderState.CONFIRMED) {
             throw new IllegalStateException("A shipment can only be created for a confirmed order.");
         }
