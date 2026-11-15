@@ -250,7 +250,7 @@ function checkout() {
         ${input("addressLine1", t("form.address"), draft.addressLine1)}
         ${input("addressLine2", t("form.address2"), draft.addressLine2)}
         <div class="form-row">
-          ${input("city", t("form.city"), draft.city)}
+          ${input("city", t("form.city"), draft.city, 120)}
           ${input("postalCode", t("form.postal"), draft.postalCode, 40, "text", "ltr")}
         </div>
         ${input("countryCode", t("form.country"), draft.countryCode, 2, "text", "ltr")}
