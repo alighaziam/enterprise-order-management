@@ -14,6 +14,6 @@ import io.github.alighaziam.eom.shipping.*; import io.github.alighaziam.eom.ship
  ProblemDetail badRequest(IllegalArgumentException e){return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,e.getMessage());}
  @ExceptionHandler(DataIntegrityViolationException.class) @ResponseStatus(HttpStatus.CONFLICT)
  ProblemDetail integrity(DataIntegrityViolationException e){return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,"Shipment conflicts with existing order data.");}
- public record CreateRequest(@NotNull UUID orderId,@NotBlank @Size(max=180) String recipientName,@NotBlank @Size(max=240) String addressLine1,@Size(max=240) String addressLine2,@NotBlank @Size(max=120) String city,@Size(max=40) String postalCode,@NotBlank @Pattern(regexp="[A-Z]{2}") String countryCode,@Size(max=40) String phone){}
+ public record CreateRequest(@NotNull UUID orderId,@NotBlank @Size(max=180) String recipientName,@NotBlank @Size(max=240) String addressLine1,@Size(max=240) String addressLine2,@NotBlank @Size(max=120) String city,@Size(max=40) String postalCode,@NotBlank @Pattern(regexp="[A-Za-z]{2}") String countryCode,@Size(max=40) String phone){}
  public record StatusRequest(@NotNull ShipmentStatus status){}
 }
