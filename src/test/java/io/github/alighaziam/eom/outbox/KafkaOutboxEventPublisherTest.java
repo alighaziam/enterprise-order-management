@@ -1,6 +1,5 @@
 package io.github.alighaziam.eom.outbox;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.alighaziam.eom.outbox.infrastructure.KafkaOutboxEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -25,7 +24,7 @@ class KafkaOutboxEventPublisherTest {
                 .thenReturn(acknowledgement);
 
         KafkaOutboxEventPublisher publisher = new KafkaOutboxEventPublisher(
-                kafka, new ObjectMapper().findAndRegisterModules(), "eom.outbox.events", 1000);
+                kafka, "eom.outbox.events", 1000);
         IntegrationEvent event = new IntegrationEvent(UUID.randomUUID(), "OrderPlaced", 1,
                 Instant.parse("2026-11-15T12:00:00Z"), "Order", "order-1", 1,
                 "correlation-1", null, "{\"orderId\":\"order-1\"}");
