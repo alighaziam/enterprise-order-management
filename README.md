@@ -10,10 +10,10 @@ Each module owns its domain and persistence. Cross-module collaboration uses pub
 |---|---|---|
 | customer | Customer profiles | Create/retrieve customers |
 | catalog | Product information and pricing | Product CRUD and active-product query |
-| inventory | Stock and reservations | Atomic stock reservation, release, confirmation |
+| inventory | Stock and reservations | Atomic stock reservation, release, confirmation; active catalog validation and locked manual adjustments |
 | order | Purchase lifecycle | Order snapshots, reserve/confirm/cancel, transactional lifecycle events |
-| payment | Payment lifecycle | Atomic idempotency-key claim, authorization, capture, void, refund; sandbox adapter |
-| shipping | Fulfillment lifecycle | Immutable destination snapshot, shipment status transitions, monotonic event versions |
+| payment | Payment lifecycle | Atomic idempotency-key claim, one active payment per order, order-total validation, locked capture/void/refund; sandbox adapter |
+| shipping | Fulfillment lifecycle | Immutable destination snapshot, confirmed-order validation, shipment status transitions, monotonic event versions |
 | outbox | Reliable event handoff | Transactional outbox, leased polling relay, retry backoff, dead-letter state, inbox deduplication |
 | checkout | Process orchestration | Persisted checkout workflow and compensation |
 
@@ -29,9 +29,9 @@ The checkout orchestration persists a workflow checkpoint and immutable delivery
 4. Confirm the order and consume reserved stock.
 5. Create shipment from a delivery-address snapshot.
 
-If authorization/capture fails, the workflow voids an authorization when possible and releases the reservation. If order confirmation fails after capture, it attempts a refund and reservation release. If shipment creation fails after payment and stock commit, the workflow remains FULFILLMENT_PENDING; it does not silently undo completed financial/inventory actions. Failed compensations are recorded as COMPENSATION_REQUIRED for operator reconciliation. Shipment-creation failures retain the address snapshot and are retried by a scheduled worker with capped exponential delay; shipment creation is idempotent by order ID.
+If authorization/capture fails, the workflow voids an authorization when possible and releases the reservation. If order confirmation fails after capture, it attempts a refund and reservation release. If shipment creation fails after payment and stock commit, the workflow remains FULFILLMENT_PENDING; it does not silently undo completed financial/inventory actions. Failed compensations are recorded as COMPENSATION_REQUIRED for operator reconciliation. Shipment-creation failures retain the address snapshot and are retried by a scheduled worker with capped exponential delay; shipment creation is idempotent by order ID and rejects a replay that changes the delivery destination.
 
-Payment idempotency keys are claimed with an atomic insert-on-conflict operation before authorization, so concurrent requests with the same key resolve to one payment intent. Authorization is permitted only for a reserved order and only when the amount and currency exactly match the persisted order total. The initial payment adapter is deterministic and sandbox-only. It does not connect to a bank, PSP, card network, or real money. It does not collect or store card PAN/CVV. The shipment carrier reference is also a local sandbox placeholder; no carrier API is called.
+Payment idempotency keys are claimed with an atomic insert-on-conflict operation before authorization, so concurrent requests with the same key resolve to one payment intent. Authorization is permitted only for a reserved order and only when the amount and currency exactly match the persisted order total. A partial unique index enforces one active payment per order, and order cancellation is blocked until an active payment is voided or refunded. The initial payment adapter is deterministic and sandbox-only. It does not connect to a bank, PSP, card network, or real money. It does not collect or store card PAN/CVV. The shipment carrier reference is also a local sandbox placeholder; no carrier API is called.
 
 ## Transactional outbox and inbox
 
