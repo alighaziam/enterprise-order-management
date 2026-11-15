@@ -17,11 +17,27 @@ spring:
         jwt:
           issuer-uri: ${WSO2_ISSUER_URI:https://localhost:9443/oauth2/token}
           jwk-set-uri: ${WSO2_JWKS_URI:https://localhost:9443/oauth2/jwks}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    admin:
+      auto-create: false
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 10
+      properties:
+        "enable.idempotence": true
+        "max.in.flight.requests.per.connection": 5
 app:
   security:
     enabled: ${APP_SECURITY_ENABLED:true}
   outbox:
     poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:1000}
+    transport: ${OUTBOX_TRANSPORT:in-process}
+    kafka:
+      topic: ${OUTBOX_KAFKA_TOPIC:eom.outbox.events}
+      publish-timeout-ms: ${OUTBOX_KAFKA_PUBLISH_TIMEOUT_MS:10000}
   checkout:
     recovery-poll-ms: ${CHECKOUT_RECOVERY_POLL_MS:5000}
 server:
