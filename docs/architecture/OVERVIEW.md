@@ -32,9 +32,9 @@ flowchart LR
 | customer | Customer identity/profile | Customer module API |
 | catalog | Product, SKU, price | Catalog module API |
 | inventory | Stock and reservation lifecycle | Inventory operations |
-| order | Order, line snapshots, order state | Order operations and transactional OrderPlaced/OrderConfirmed/OrderCancelled events |
-| payment | Payment intent and payment state machine | Payment operations |
-| shipping | Shipment and delivery-address snapshot | Shipping operations |
+| order | Order, line snapshots, order state | Order operations, transactional lifecycle events, and confirmation/cancellation guard ports |
+| payment | Payment intent and payment state machine | Payment operations plus adapters for the order guard ports |
+| shipping | Shipment and delivery-address snapshot | Shipping operations; validates confirmed orders through the order API |
 | outbox | Event envelope, relay metadata, inbox deduplication | Append/publish operations |
 | checkout | Durable checkout workflow and orchestration | Checkout API |
 
