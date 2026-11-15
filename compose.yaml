@@ -15,6 +15,33 @@ services:
       timeout: 3s
       retries: 10
 
+  kafka:
+    image: apache/kafka:4.1.0
+    profiles: ["broker"]
+    hostname: kafka
+    ports:
+      - "127.0.0.1:9092:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
   app:
     build: .
     init: true
@@ -33,6 +60,10 @@ services:
       DB_USERNAME: ${DB_USERNAME:-app}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       APP_SECURITY_ENABLED: ${APP_SECURITY_ENABLED:-true}
+      OUTBOX_TRANSPORT: ${OUTBOX_TRANSPORT:-in-process}
+      OUTBOX_KAFKA_TOPIC: ${OUTBOX_KAFKA_TOPIC:-eom.outbox.events}
+      OUTBOX_KAFKA_PUBLISH_TIMEOUT_MS: ${OUTBOX_KAFKA_PUBLISH_TIMEOUT_MS:-10000}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
       WSO2_ISSUER_URI: ${WSO2_ISSUER_URI:?Set WSO2_ISSUER_URI in .env}
       WSO2_JWKS_URI: ${WSO2_JWKS_URI:?Set WSO2_JWKS_URI in .env}
     ports:
