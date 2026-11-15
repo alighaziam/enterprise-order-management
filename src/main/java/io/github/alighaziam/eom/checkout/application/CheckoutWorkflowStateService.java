@@ -12,7 +12,8 @@ import java.util.UUID;
 
 /**
  * Commits a checkout workflow checkpoint and its integration event atomically.
- * External payment and carrier calls stay outside these short transactions.
+ * The orchestrator invokes the local sandbox adapters separately; this service
+ * owns only the short workflow/outbox transaction.
  */
 @Service
 public class CheckoutWorkflowStateService {
