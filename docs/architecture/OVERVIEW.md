@@ -114,7 +114,7 @@ Use this query for inspection only. Do not manually mark events published or rep
 
 ## 7. Quality attributes and trade-offs
 
-- **Consistency:** local ACID transactions are preferred inside the modular monolith; saga compensation is used across workflow steps. Checkout and shipment event versions are monotonic and are backfilled from existing outbox history during migration.
+- **Consistency:** local ACID transactions are preferred inside the modular monolith; saga compensation is used across workflow steps. Payment authorization is bound to the locked order total, active payments are unique per order, and cancellation is guarded until payment is voided/refunded. Shipping requires a confirmed order and an immutable matching destination. Checkout and shipment event versions are monotonic and are backfilled from existing outbox history during migration.
 - **Resilience:** retries, leases, dead-letter state, idempotency keys, and fulfillment recovery cover selected failure modes.
 - **Maintainability:** module ownership and Spring Modulith checks discourage accidental coupling.
 - **Scalability:** database-backed relay claims can be shared by multiple application instances, but throughput and ordering guarantees have not been benchmarked.
