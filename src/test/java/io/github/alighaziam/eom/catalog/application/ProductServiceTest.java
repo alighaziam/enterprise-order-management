@@ -21,6 +21,7 @@ class ProductServiceTest {
   private final Map<UUID,Product> data=new HashMap<>();
   public Product save(Product p){data.put(p.id(),p);return p;}
   public Optional<Product> findById(UUID id){return Optional.ofNullable(data.get(id));}
+  public Optional<Product> findByIdForUpdate(UUID id){return findById(id);}
   public List<Product> findRecent(){return data.values().stream().sorted(Comparator.comparing(Product::createdAt).reversed()).limit(40).toList();}
   public boolean existsBySku(String sku){return data.values().stream().anyMatch(p->p.sku().equals(sku));}
   public Page<Product> search(String q, Boolean active, Pageable pageable){
