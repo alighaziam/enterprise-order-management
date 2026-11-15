@@ -1,5 +1,5 @@
 ALTER TABLE payment.payment_intents
-    DROP CONSTRAINT payment_intents_status_check;
+    DROP CONSTRAINT IF EXISTS payment_intents_status_check;
 
 ALTER TABLE payment.payment_intents
     ADD CONSTRAINT ck_payment_intents_status
