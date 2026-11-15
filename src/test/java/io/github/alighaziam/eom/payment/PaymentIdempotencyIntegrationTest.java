@@ -1,16 +1,16 @@
 package io.github.alighaziam.eom.payment;
 
-import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
-import java.util.UUID;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -35,8 +35,7 @@ class PaymentIdempotencyIntegrationTest {
         UUID orderId = UUID.randomUUID();
         String key = "parallel-payment-" + UUID.randomUUID();
         BigDecimal amount = new BigDecimal("42.50");
-        when(orders.orderDetails(orderId)).thenReturn(Optional.of(
-                new OrderOperations.OrderDetails(orderId, amount, "EUR", OrderState.RESERVED)));
+        stubReservedOrder(orderId, amount);
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
 
@@ -61,8 +60,7 @@ class PaymentIdempotencyIntegrationTest {
     void rejectsReusingAnIdempotencyKeyWithDifferentPaymentDetails() {
         String key = "payment-payload-" + UUID.randomUUID();
         UUID orderId = UUID.randomUUID();
-        when(orders.paymentDetails(orderId)).thenReturn(
-                new OrderOperations.OrderPaymentDetails(orderId, new BigDecimal("12.00"), "EUR", OrderState.RESERVED));
+        stubReservedOrder(orderId, new BigDecimal("12.00"));
 
         payments.authorize(orderId, new BigDecimal("12.00"), "EUR", key);
 
@@ -71,10 +69,21 @@ class PaymentIdempotencyIntegrationTest {
     }
 
     @Test
+    void preventsTwoActivePaymentsForTheSameOrder() {
+        UUID orderId = UUID.randomUUID();
+        BigDecimal amount = new BigDecimal("31.00");
+        stubReservedOrder(orderId, amount);
+
+        payments.authorize(orderId, amount, "EUR", "first-payment-" + UUID.randomUUID());
+
+        assertThrows(IllegalStateException.class, () ->
+                payments.authorize(orderId, amount, "EUR", "second-payment-" + UUID.randomUUID()));
+    }
+
+    @Test
     void rejectsAmountThatDoesNotMatchTheReservedOrder() {
         UUID orderId = UUID.randomUUID();
-        when(orders.paymentDetails(orderId)).thenReturn(
-                new OrderOperations.OrderPaymentDetails(orderId, new BigDecimal("25.00"), "EUR", OrderState.RESERVED));
+        stubReservedOrder(orderId, new BigDecimal("25.00"));
 
         assertThrows(IllegalArgumentException.class, () ->
                 payments.authorize(orderId, new BigDecimal("24.99"), "EUR", "wrong-total-" + UUID.randomUUID()));
@@ -83,11 +92,16 @@ class PaymentIdempotencyIntegrationTest {
     @Test
     void rejectsAuthorizationForAnOrderThatIsNoLongerReserved() {
         UUID orderId = UUID.randomUUID();
-        when(orders.paymentDetails(orderId)).thenReturn(
-                new OrderOperations.OrderPaymentDetails(orderId, new BigDecimal("25.00"), "EUR", OrderState.CONFIRMED)));
+        when(orders.orderDetails(orderId)).thenReturn(Optional.of(
+                new OrderOperations.OrderDetails(orderId, new BigDecimal("25.00"), "EUR", OrderState.CONFIRMED)));
 
         assertThrows(IllegalStateException.class, () ->
                 payments.authorize(orderId, new BigDecimal("25.00"), "EUR", "confirmed-" + UUID.randomUUID()));
+    }
+
+    private void stubReservedOrder(UUID orderId, BigDecimal amount) {
+        when(orders.orderDetails(orderId)).thenReturn(Optional.of(
+                new OrderOperations.OrderDetails(orderId, amount, "EUR", OrderState.RESERVED)));
     }
 
     private PaymentIntent authorize(UUID orderId, BigDecimal amount, String key,
