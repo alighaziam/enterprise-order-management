@@ -3,6 +3,9 @@ package io.github.alighaziam.eom.checkout;
 import io.github.alighaziam.eom.catalog.application.ProductService;
 import io.github.alighaziam.eom.customer.application.CustomerService;
 import io.github.alighaziam.eom.inventory.application.InventoryService;
+import io.github.alighaziam.eom.checkout.application.CheckoutFulfillmentClaimService;
+import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowEntity;
+import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowRepository;
 import io.github.alighaziam.eom.shipping.DeliveryAddress;
 import io.github.alighaziam.eom.shipping.ShippingOperations;
 import org.junit.jupiter.api.Test;
@@ -22,6 +25,8 @@ class CheckoutWorkflowIntegrationTest {
     @Autowired InventoryService inventory;
     @Autowired CheckoutOperations checkout;
     @Autowired ShippingOperations shipping;
+    @Autowired CheckoutWorkflowRepository workflows;
+    @Autowired CheckoutFulfillmentClaimService fulfillmentClaims;
 
     @Test
     void completesSandboxCheckoutAndPersistsWorkflowAndShipment() {
