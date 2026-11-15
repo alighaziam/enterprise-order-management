@@ -43,7 +43,7 @@ class CheckoutWorkflowIntegrationTest {
         String checkoutKey = checkoutKeyPrefix + "x".repeat(120 - checkoutKeyPrefix.length());
         var request = new CheckoutOperations.CheckoutRequest(customer.id(),
                 List.of(new io.github.alighaziam.eom.order.OrderOperations.OrderLineRequest(product.id(), 2)),
-                new DeliveryAddress("Recipient", "Main Street 1", null, "Berlin", "10115", "DE", "+491234567"),
+                new DeliveryAddress("Recipient", "Main Street 1", null, "Berlin", "10115", "de", "+491234567"),
                 checkoutKey);
         var result = checkout.checkout(request);
 
@@ -52,6 +52,7 @@ class CheckoutWorkflowIntegrationTest {
         assertNotNull(result.shipmentId());
         assertEquals(3, inventory.find(product.id()).onHandQuantity());
         assertEquals(result.orderId(), shipping.get(result.shipmentId()).orderId());
+        assertEquals("DE", shipping.get(result.shipmentId()).destination().countryCode());
         assertEquals(CheckoutStatus.COMPLETED, checkout.get(result.workflowId()).status());
 
         List<OutboxEntity> workflowEvents = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
