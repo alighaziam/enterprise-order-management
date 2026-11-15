@@ -140,14 +140,12 @@ public class CheckoutService implements CheckoutOperations {
         return workflows.findById(id).orElseThrow(() -> new CheckoutNotFoundException(id)).toResult();
     }
 
-    @Override
     @Transactional(readOnly = true)
     public List<CheckoutResult> list() {
         return workflows.findTop40ByOrderByUpdatedAtDesc().stream()
                 .map(CheckoutWorkflowEntity::toResult).toList();
     }
 
-    @Override
     @Transactional(readOnly = true)
     public Page<CheckoutResult> search(String query, String status, int page, int size) {
         CheckoutStatus parsed = status == null || status.isBlank() ? null : CheckoutStatus.valueOf(status);
