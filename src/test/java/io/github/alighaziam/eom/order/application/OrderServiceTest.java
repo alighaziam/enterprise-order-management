@@ -6,6 +6,7 @@ import io.github.alighaziam.eom.inventory.InventoryOperations;
 import io.github.alighaziam.eom.order.domain.Order;
 import io.github.alighaziam.eom.order.domain.OrderStatus;
 import io.github.alighaziam.eom.order.OrderCancellationGuard;
+import io.github.alighaziam.eom.order.OrderConfirmationGuard;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.Page;
@@ -37,7 +38,7 @@ class OrderServiceTest {
         OutboxOperations outbox = mock(OutboxOperations.class);
         when(inventory.reserve(product, 2)).thenReturn(reservation);
 
-        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, mock(OrderCancellationGuard.class));
+        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, mock(OrderCancellationGuard.class), mock(OrderConfirmationGuard.class));
         Order placed = service.place(customer, List.of(new OrderService.OrderRequestLine(product, 2)));
 
         assertEquals(OrderStatus.RESERVED, placed.status());
@@ -64,7 +65,7 @@ class OrderServiceTest {
         CatalogOperations catalog = id -> Optional.of(new CatalogProduct(
                 product, "SKU-2", "Mouse", new BigDecimal("5.00"), "EUR", true));
 
-        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, mock(OrderCancellationGuard.class));
+        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, mock(OrderCancellationGuard.class), mock(OrderConfirmationGuard.class));
         Order order = service.place(UUID.randomUUID(),
                 List.of(new OrderService.OrderRequestLine(product, 1)));
 
@@ -89,7 +90,7 @@ class OrderServiceTest {
         CatalogOperations catalog = id -> Optional.of(new CatalogProduct(
                 product, "SKU-3", "Monitor", new BigDecimal("100.00"), "EUR", true));
 
-        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, guard);
+        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, guard, mock(OrderConfirmationGuard.class));
         Order order = service.place(UUID.randomUUID(),
                 List.of(new OrderService.OrderRequestLine(product, 1)));
 
@@ -112,7 +113,7 @@ class OrderServiceTest {
         CatalogOperations catalog = id -> Optional.of(new CatalogProduct(
                 id, "SKU", "Product", BigDecimal.ONE, id.equals(first) ? "EUR" : "USD", true));
 
-        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, mock(OrderCancellationGuard.class));
+        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox, mock(OrderCancellationGuard.class), mock(OrderConfirmationGuard.class));
 
         assertThrows(OrderConflictException.class, () -> service.place(UUID.randomUUID(), List.of(
                 new OrderService.OrderRequestLine(first, 1),
