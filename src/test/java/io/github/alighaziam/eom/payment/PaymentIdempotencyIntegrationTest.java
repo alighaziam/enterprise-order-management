@@ -69,6 +69,26 @@ class PaymentIdempotencyIntegrationTest {
                 payments.authorize(orderId, new BigDecimal("13.00"), "EUR", key));
     }
 
+    @Test
+    void rejectsAmountThatDoesNotMatchTheReservedOrder() {
+        UUID orderId = UUID.randomUUID();
+        when(orders.paymentDetails(orderId)).thenReturn(
+                new OrderOperations.OrderPaymentDetails(orderId, new BigDecimal("25.00"), "EUR", OrderState.RESERVED));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                payments.authorize(orderId, new BigDecimal("24.99"), "EUR", "wrong-total-" + UUID.randomUUID()));
+    }
+
+    @Test
+    void rejectsAuthorizationForAnOrderThatIsNoLongerReserved() {
+        UUID orderId = UUID.randomUUID();
+        when(orders.paymentDetails(orderId)).thenReturn(
+                new OrderOperations.OrderPaymentDetails(orderId, new BigDecimal("25.00"), "EUR", OrderState.CONFIRMED));
+
+        assertThrows(IllegalStateException.class, () ->
+                payments.authorize(orderId, new BigDecimal("25.00"), "EUR", "confirmed-" + UUID.randomUUID()));
+    }
+
     private PaymentIntent authorize(UUID orderId, BigDecimal amount, String key,
                                     CountDownLatch ready, CountDownLatch start) throws Exception {
         ready.countDown();
