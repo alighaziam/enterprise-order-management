@@ -145,6 +145,9 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Scheduled fulfillment recovery for FULFILLMENT_PENDING using persisted address snapshots and exponential retry delay
 - [x] Versioned Order, Checkout, and Shipment lifecycle events written transactionally to the outbox
 - [x] Operator reconciliation for COMPENSATION_REQUIRED when the order is still reserved; a confirmed captured sale is left intact
+- [x] Order confirmation/cancellation guards backed by locked payment state and a one-active-payment-per-order constraint
+- [x] Dashboard attention queues and operational counts across filtered result sets
+- [x] Non-root application container with read-only root filesystem and dropped Linux capabilities
 
 ## Security and WSO2 integration
 
