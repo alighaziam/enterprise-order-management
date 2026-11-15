@@ -28,7 +28,8 @@ public interface ShipmentRepository extends JpaRepository<ShipmentEntity, UUID> 
             where (:status is null or s.status = :status)
               and (:q is null or :q = '' or lower(s.recipientName) like lower(concat('%', :q, '%'))
                 or lower(s.city) like lower(concat('%', :q, '%'))
-                or lower(str(s.id)) like lower(concat('%', :q, '%')))
+                or lower(str(s.id)) like lower(concat('%', :q, '%'))
+                or lower(str(s.orderId)) like lower(concat('%', :q, '%')))
             """)
     Page<ShipmentEntity> search(@Param("q") String q,
                                 @Param("status") ShipmentStatus status,
