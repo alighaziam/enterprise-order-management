@@ -19,7 +19,7 @@ Each module owns its domain and persistence. Cross-module collaboration uses pub
 
 ## Order and checkout consistency
 
-A normal order placement reserves inventory and writes order state plus an `OrderPlaced` outbox event in one PostgreSQL transaction. Confirming an order consumes all reservations and publishes `OrderConfirmed`; cancelling releases them and publishes `OrderCancelled`. Manual stock adjustments lock the stock row so they cannot overwrite a concurrent reservation. Repeated confirm/cancel operations are idempotent and order transitions are locked.
+A normal order placement reserves inventory and writes order state plus an `OrderPlaced` outbox event in one PostgreSQL transaction. An order can be confirmed only after a captured payment exists; confirmation consumes all reservations and publishes `OrderConfirmed`. Cancellation is blocked while a payment is active; after it is voided or refunded, cancellation releases reservations and publishes `OrderCancelled`. Manual stock adjustments lock the stock row so they cannot overwrite a concurrent reservation. Repeated confirm/cancel operations are idempotent and order transitions are locked.
 
 The checkout orchestration persists a workflow checkpoint and immutable delivery-address snapshot at each step. Each checkpoint update and its versioned outbox event are committed in the same short PostgreSQL transaction; payment and carrier calls remain outside those transactions. Workflow state writes use row-level locking so competing recovery workers cannot silently overwrite a newer checkpoint:
 
