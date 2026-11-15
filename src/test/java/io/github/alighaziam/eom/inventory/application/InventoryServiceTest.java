@@ -84,6 +84,10 @@ class InventoryServiceTest {
             return Optional.ofNullable(stocks.get(id));
         }
 
+        public Optional<StockItem> findByProductIdForUpdate(UUID id) {
+            return findByProductId(id);
+        }
+
         public java.util.List<StockItem> findAllStock() {
             return new java.util.ArrayList<>(stocks.values());
         }
