@@ -3,6 +3,7 @@ package io.github.alighaziam.eom.payment;
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
+import io.github.alighaziam.eom.outbox.infrastructure.OutboxRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,6 +27,9 @@ class PaymentIdempotencyIntegrationTest {
 
     @Autowired
     private PaymentRepository repository;
+
+    @Autowired
+    private OutboxRepository outbox;
 
     @MockitoBean
     private OrderOperations orders;
@@ -54,6 +58,34 @@ class PaymentIdempotencyIntegrationTest {
             assertEquals(PaymentStatus.AUTHORIZED, secondResult.status());
             assertEquals(firstResult.id(), repository.findByIdempotencyKey(key).orElseThrow().toDomain().id());
         }
+    }
+
+    @Test
+    void concurrentCaptureRequestsPublishOnlyOneCaptureTransition() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        BigDecimal amount = new BigDecimal("19.50");
+        stubReservedOrder(orderId, amount);
+        PaymentIntent payment = payments.authorize(orderId, amount, "EUR",
+                "capture-race-" + UUID.randomUUID());
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> capture(payment.id(), ready, start));
+            var second = executor.submit(() -> capture(payment.id(), ready, start));
+            assertTrue(ready.await(10, TimeUnit.SECONDS), "Both capture requests should be ready");
+            start.countDown();
+
+            assertEquals(PaymentStatus.CAPTURED, first.get(15, TimeUnit.SECONDS).status());
+            assertEquals(PaymentStatus.CAPTURED, second.get(15, TimeUnit.SECONDS).status());
+        }
+
+        var events = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
+                "PaymentIntent", payment.id().toString());
+        assertEquals(java.util.List.of("PaymentAuthorized", "PaymentCaptured"),
+                events.stream().map(event -> event.getEventType()).toList());
+        assertEquals(java.util.List.of(1L, 2L),
+                events.stream().map(event -> event.getAggregateVersion()).toList());
     }
 
     @Test
@@ -97,6 +129,14 @@ class PaymentIdempotencyIntegrationTest {
 
         assertThrows(IllegalStateException.class, () ->
                 payments.authorize(orderId, new BigDecimal("25.00"), "EUR", "confirmed-" + UUID.randomUUID()));
+    }
+
+    private PaymentIntent capture(UUID paymentId, CountDownLatch ready, CountDownLatch start) throws Exception {
+        ready.countDown();
+        if (!start.await(10, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Timed out waiting for concurrent capture");
+        }
+        return payments.capture(paymentId);
     }
 
     private void stubReservedOrder(UUID orderId, BigDecimal amount) {
