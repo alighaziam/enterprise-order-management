@@ -33,7 +33,7 @@ Payment and Shipping publish narrow root-package APIs. Their persistence remains
 
 Payment states: REQUESTED, AUTHORIZED, CAPTURED, FAILED, VOIDED, REFUND_PENDING, REFUNDED. State transitions are explicit and validated. Authorization and capture are separate commands.
 
-Every provider command has a stable idempotency key derived from a persisted payment operation, not a transient HTTP request. The payment module claims request keys atomically and validates the requested amount/currency against the locked reserved order before authorization. Store provider references and sanitized outcomes; never persist card PAN/CVV or log secrets. The initial adapter is a deterministic sandbox/fake gateway. Real provider credentials and money movement are out of scope until separately approved.
+Every provider command has a stable idempotency key derived from a persisted payment operation, not a transient HTTP request. The payment module claims request keys atomically and validates the requested amount/currency against the locked reserved order before authorization. Store provider references and sanitized outcomes; never persist card PAN/CVV or log secrets. The initial payment adapter is a deterministic sandbox/fake gateway; the carrier side is isolated behind a CarrierGateway port with a deterministic sandbox implementation. Real provider credentials and money movement are out of scope until separately approved.
 
 A provider timeout is an **unknown outcome**, not a failure. Query/reconcile by idempotency key or provider reference before retrying a non-idempotent financial operation. Refund and void are separate compensating actions and must be auditable.
 
@@ -78,7 +78,7 @@ Each event has a UUID event ID, event type, schema version, occurrence timestamp
 
 The relay uses retry/backoff, attempt count, last error, created/delivered timestamps, and an operational dead-letter state. Per-aggregate ordering must be explicit; global ordering is not promised. Payloads must be versioned, bounded, and free of secrets/payment data.
 
-Initial transport is PostgreSQL polling; do not add Kafka/RabbitMQ until throughput or independent deployment requirements justify it.
+The default transport is PostgreSQL polling with in-process event publication. An optional Kafka publisher can be enabled without changing outbox/inbox semantics when a broker-backed deployment is required. Kafka messages are keyed by aggregate identity and the relay waits for broker acknowledgement; delivery remains at least once.
 
 ### 8. Implementation sequence
 
