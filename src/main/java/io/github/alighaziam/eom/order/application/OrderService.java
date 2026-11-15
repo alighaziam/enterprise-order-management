@@ -192,10 +192,9 @@ public class OrderService implements OrderOperations {
     }
 
     @Override
-    public OrderDetails orderDetails(UUID id) {
-        Order order = findForUpdate(id);
-        return new OrderDetails(order.id(), order.totalAmount(), order.currency(),
-                OrderState.valueOf(order.status().name()));
+    public java.util.Optional<OrderDetails> orderDetails(UUID id) {
+        return store.findByIdForUpdate(id).map(order -> new OrderDetails(order.id(), order.totalAmount(),
+                order.currency(), OrderState.valueOf(order.status().name())));
     }
 
     private OrderSummary summary(Order order) {
