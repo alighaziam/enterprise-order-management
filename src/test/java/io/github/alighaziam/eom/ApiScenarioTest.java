@@ -202,6 +202,15 @@ class ApiScenarioTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .body("{\"active\":false}")
                 .retrieve().toBodilessEntity();
+        RestClientResponseException inactiveStock = assertThrows(RestClientResponseException.class,
+                () -> post("/api/v1/inventory/stock", """
+                        {"productId":"%s","quantity":4}
+                        """.formatted(productId)));
+        assertEquals(409, inactiveStock.getStatusCode().value());
+        http.post().uri("/api/v1/products/" + productId + "/active")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body("{\"active\":true}")
+                .retrieve().toBodilessEntity();
         post("/api/v1/inventory/stock", """
                 {"productId":"%s","quantity":4}
                 """.formatted(productId));
