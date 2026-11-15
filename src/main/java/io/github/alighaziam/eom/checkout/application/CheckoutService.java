@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -52,6 +53,7 @@ public class CheckoutService implements CheckoutOperations {
     @Override
     public CheckoutResult checkout(CheckoutRequest request) {
         validate(request);
+        request = normalize(request);
 
         CheckoutReservationService.ReservationResult reservation;
         try {
@@ -227,11 +229,44 @@ public class CheckoutService implements CheckoutOperations {
     private static void validate(CheckoutRequest request) {
         if (request == null || request.customerId() == null
                 || request.lines() == null || request.lines().isEmpty()
-                || request.deliveryAddress() == null
                 || request.idempotencyKey() == null || request.idempotencyKey().isBlank()
-                || request.idempotencyKey().length() > 120) {
+                || request.idempotencyKey().trim().length() > 120) {
             throw new IllegalArgumentException(
                     "Customer, order lines, delivery address, and idempotency key are required.");
         }
+
+        if (request.lines().stream().anyMatch(line -> line == null
+                || line.productId() == null || line.quantity() <= 0)) {
+            throw new IllegalArgumentException("Every order line requires a product and a positive quantity.");
+        }
+
+        DeliveryAddress address = request.deliveryAddress();
+        if (address == null || blank(address.recipientName()) || blank(address.addressLine1())
+                || blank(address.city()) || address.countryCode() == null
+                || !address.countryCode().trim().matches("[A-Za-z]{2}")) {
+            throw new IllegalArgumentException("A recipient, street, city, and ISO country code are required.");
+        }
+    }
+
+    private static CheckoutRequest normalize(CheckoutRequest request) {
+        DeliveryAddress address = request.deliveryAddress();
+        DeliveryAddress normalizedAddress = new DeliveryAddress(
+                address.recipientName().trim(),
+                address.addressLine1().trim(),
+                trimToNull(address.addressLine2()),
+                address.city().trim(),
+                trimToNull(address.postalCode()),
+                address.countryCode().trim().toUpperCase(Locale.ROOT),
+                trimToNull(address.phone()));
+        return new CheckoutRequest(request.customerId(), request.lines(), normalizedAddress,
+                request.idempotencyKey().trim());
+    }
+
+    private static String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static boolean blank(String value) {
+        return value == null || value.isBlank();
     }
 }
