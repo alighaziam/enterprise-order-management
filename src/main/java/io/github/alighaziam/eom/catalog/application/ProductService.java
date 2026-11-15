@@ -3,6 +3,7 @@ import io.github.alighaziam.eom.catalog.domain.Product;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -21,8 +22,12 @@ public class ProductService {
   if(price==null||price.signum()<=0) throw new IllegalArgumentException("Unit price must be greater than zero.");
   String normalizedCurrency=currency.trim().toUpperCase(Locale.ROOT);
   if(!normalizedCurrency.matches("[A-Z]{3}")) throw new IllegalArgumentException("Currency must be a three-letter ISO code.");
-  return store.save(new Product(UUID.randomUUID(),normalizedSku,name.trim(),description==null?null:description.trim(),
-   price,normalizedCurrency,true,Instant.now()));
+  try {
+   return store.save(new Product(UUID.randomUUID(),normalizedSku,name.trim(),description==null?null:description.trim(),
+    price,normalizedCurrency,true,Instant.now()));
+  } catch (DataIntegrityViolationException duplicate) {
+   throw new DuplicateSkuException(normalizedSku);
+  }
  }
  @Transactional(readOnly=true) public Optional<Product> findById(UUID id){return store.findById(id);}
  @Transactional(readOnly=true) public List<Product> list(){return store.findRecent();}
