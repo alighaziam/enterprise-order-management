@@ -1,9 +1,11 @@
 package io.github.alighaziam.eom.payment.infrastructure;
 
 import io.github.alighaziam.eom.payment.PaymentStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -33,6 +35,10 @@ public interface PaymentRepository extends JpaRepository<PaymentIntentEntity, UU
                        @Param("now") Instant now);
 
     Optional<PaymentIntentEntity> findByIdempotencyKey(String idempotencyKey);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from PaymentIntentEntity p where p.id = :id")
+    Optional<PaymentIntentEntity> findByIdForUpdate(@Param("id") UUID id);
 
     boolean existsByOrderIdAndStatusIn(UUID orderId, Collection<PaymentStatus> statuses);
 
