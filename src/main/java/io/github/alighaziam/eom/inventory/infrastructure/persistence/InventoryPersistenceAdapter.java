@@ -37,6 +37,11 @@ public class InventoryPersistenceAdapter implements InventoryStore {
     }
 
     @Override
+    public Optional<StockItem> findByProductIdForUpdate(UUID id) {
+        return stockRepository.findByProductIdForUpdate(id).map(InventoryPersistenceAdapter::toDomain);
+    }
+
+    @Override
     public List<StockItem> findAllStock() {
         return stockRepository.findAll().stream().map(InventoryPersistenceAdapter::toDomain).toList();
     }
