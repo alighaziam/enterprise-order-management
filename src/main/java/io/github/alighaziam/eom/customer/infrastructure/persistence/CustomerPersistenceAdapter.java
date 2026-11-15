@@ -15,6 +15,7 @@ public class CustomerPersistenceAdapter implements CustomerStore {
   return toDomain(repository.saveAndFlush(new CustomerEntity(customer.id(), customer.fullName(), customer.email(), customer.active(), customer.createdAt())));
  }
  @Override public Optional<Customer> findById(UUID id) { return repository.findById(id).map(CustomerPersistenceAdapter::toDomain); }
+ @Override public Optional<Customer> findByIdForUpdate(UUID id) { return repository.findByIdForUpdate(id).map(CustomerPersistenceAdapter::toDomain); }
  @Override public List<Customer> findRecent() { return repository.findTop40ByOrderByCreatedAtDesc().stream().map(CustomerPersistenceAdapter::toDomain).toList(); }
  @Override public boolean existsByEmail(String email) { return repository.existsByEmail(email); }
  @Override public boolean emailUsedByOther(String email, UUID id) { return repository.existsByEmailAndIdNot(email, id); }
