@@ -85,8 +85,7 @@ class OrderServiceTest {
         OutboxOperations outbox = mock(OutboxOperations.class);
         OrderCancellationGuard guard = mock(OrderCancellationGuard.class);
         when(inventory.reserve(product, 1)).thenReturn(reservation);
-        when(guard.assertCanCancel(any())).thenThrow(
-                new IllegalStateException("An active payment exists."));
+        doThrow(new IllegalStateException("An active payment exists.")).when(guard).assertCanCancel(any());
         CatalogOperations catalog = id -> Optional.of(new CatalogProduct(
                 product, "SKU-3", "Monitor", new BigDecimal("100.00"), "EUR", true));
 
