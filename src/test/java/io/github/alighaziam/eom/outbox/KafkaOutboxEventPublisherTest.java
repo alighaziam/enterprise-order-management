@@ -45,7 +45,7 @@ class KafkaOutboxEventPublisherTest {
         when(kafka.send(anyString(), any(), any())).thenReturn(failure);
 
         KafkaOutboxEventPublisher publisher = new KafkaOutboxEventPublisher(
-                kafka, new ObjectMapper().findAndRegisterModules(), "eom.outbox.events", 1000);
+                kafka, "eom.outbox.events", 1000);
         IntegrationEvent event = new IntegrationEvent(UUID.randomUUID(), "OrderPlaced", 1,
                 Instant.now(), "Order", "order-1", 1, "correlation-1", null, "{}");
 
