@@ -85,7 +85,7 @@ Inspect the returned workflow status. The expected successful terminal state is 
 
 - **Insufficient stock:** lower available stock below the requested quantity; order placement should fail without creating a partially reserved order.
 - **Duplicate checkout request:** repeat the same checkout request with the same idempotency key; it should return the existing persisted workflow rather than create a second order/payment.
-- **Payment failure:** use the sandbox gateway's supported failure behavior only after confirming its configuration; demonstrate reservation release/authorization void and inspect the persisted workflow.
+- **Payment failure:** the deterministic sandbox has no external-provider failure simulator. Demonstrate compensation through the automated failure-path tests and inspect the persisted workflow; do not claim this simulates a real PSP timeout.
 - **Shipment creation failure:** demonstrate that the paid/confirmed order remains fulfillment-pending and that the scheduled worker retries from the stored address snapshot.
 - **Outbox retry / dead letter:** use the dedicated outbox tests as the safe reproducible demonstration. Do not corrupt a shared database or manually edit production-like rows to force a failure.
 
