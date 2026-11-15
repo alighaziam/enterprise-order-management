@@ -212,8 +212,8 @@ function desk() {
     <section class="grid metrics">
       ${metric(t("metric.checkouts"), state.meta.checkouts?.totalElements ?? state.checkouts.length, t("pager.status", { page: (state.meta.checkouts?.number || 0) + 1, pages: state.meta.checkouts?.totalPages || 1, total: state.meta.checkouts?.totalElements || 0 }))}
       ${metric(t("metric.attention"), state.meta.attention ?? attention.length, t("metric.attentionNote"))}
-      ${metric(t("metric.reserved"), state.meta.reservedOrders ?? reserved.length, t("metric.reservedNote"))}
-      ${metric(t("metric.dead"), state.meta.deadLetters ?? dead.length, t("metric.deadNote"))}
+      ${metric(t("metric.reserved"), state.meta.reservedOrders ?? state.reservedOrders.length, t("metric.reservedNote"))}
+      ${metric(t("metric.dead"), state.meta.deadLetters ?? state.deadLetters.length, t("metric.deadNote"))}
     </section>
     <section class="grid split" style="margin-top:16px">
       <article class="card">
