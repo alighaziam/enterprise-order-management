@@ -12,7 +12,7 @@ public class CustomerPersistenceAdapter implements CustomerStore {
  private final SpringDataCustomerRepository repository;
  public CustomerPersistenceAdapter(SpringDataCustomerRepository repository) { this.repository = repository; }
  @Override public Customer save(Customer customer) {
-  return toDomain(repository.save(new CustomerEntity(customer.id(), customer.fullName(), customer.email(), customer.active(), customer.createdAt())));
+  return toDomain(repository.saveAndFlush(new CustomerEntity(customer.id(), customer.fullName(), customer.email(), customer.active(), customer.createdAt())));
  }
  @Override public Optional<Customer> findById(UUID id) { return repository.findById(id).map(CustomerPersistenceAdapter::toDomain); }
  @Override public List<Customer> findRecent() { return repository.findTop40ByOrderByCreatedAtDesc().stream().map(CustomerPersistenceAdapter::toDomain).toList(); }
