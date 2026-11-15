@@ -32,7 +32,7 @@ public class ProductService {
  @Transactional(readOnly=true) public Optional<Product> findById(UUID id){return store.findById(id);}
  @Transactional(readOnly=true) public List<Product> list(){return store.findRecent();}
  public Product update(UUID id, String name, String description, BigDecimal price, String currency){
-  Product current=store.findById(id).orElseThrow(()->new ProductNotFoundException(id));
+  Product current=store.findByIdForUpdate(id).orElseThrow(()->new ProductNotFoundException(id));
   if(price==null||price.signum()<=0) throw new IllegalArgumentException("Unit price must be greater than zero.");
   String normalizedCurrency=currency.trim().toUpperCase(Locale.ROOT);
   if(!normalizedCurrency.matches("[A-Z]{3}")) throw new IllegalArgumentException("Currency must be a three-letter ISO code.");
