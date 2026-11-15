@@ -70,7 +70,7 @@ sequenceDiagram
     W-->>C: Workflow result
 ```
 
-The workflow persists checkpoints and an immutable delivery-address snapshot. Payment-step failure attempts void/release compensation. Order-confirmation failure after capture attempts refund and reservation resolution. Shipment creation failure does not reverse completed payment or inventory actions: the workflow remains fulfillment-pending and the recovery worker retries using the persisted address snapshot. A failed compensation becomes `COMPENSATION_REQUIRED` and requires operator reconciliation; it is not silently treated as success.
+The workflow persists checkpoints and an immutable delivery-address snapshot. Every checkpoint update is committed with its versioned outbox event in the same short PostgreSQL transaction; row-level locks serialize competing workflow updates. External payment and carrier calls remain outside those transactions. Payment-step failure attempts void/release compensation. Order-confirmation failure after capture attempts refund and reservation resolution. Shipment creation failure does not reverse completed payment or inventory actions: the workflow remains fulfillment-pending and the recovery worker retries using the persisted address snapshot. A failed compensation becomes `COMPENSATION_REQUIRED` and requires operator reconciliation; it is not silently treated as success.
 
 **Important financial boundary:** the current payment gateway is sandbox-only. A provider timeout in a real integration would represent an unknown outcome and must be reconciled by provider reference/idempotency key before retrying a financial command.
 
@@ -84,7 +84,7 @@ Business state and event rows are appended in the same PostgreSQL transaction. A
 - Retry: exponential backoff, starting at 2 seconds and capped at 1 hour.
 - Dead-letter: after 12 failed attempts; rows are excluded from automatic claims.
 - Expired leases become eligible for recovery.
-- Inbox uniqueness is scoped by consumer and event ID.
+- Inbox uniqueness is scoped by consumer and event ID; an atomic `INSERT ... ON CONFLICT DO NOTHING` claim prevents concurrent deliveries from invoking the same consumer handler twice.
 
 Delivery is **at least once**, not exactly once. A process can publish an event and crash before saving its published marker. A lease can also expire during unusually slow publication. Consumers must therefore deduplicate and make their business effects idempotent. The current transport is Spring's in-process event publisher, not Kafka/RabbitMQ.
 
@@ -107,7 +107,7 @@ Use this query for inspection only. Do not manually mark events published or rep
 | Order + inventory | One local PostgreSQL transaction | Atomic within this database |
 | Business write + outbox append | Same local transaction | No lost event due to a DB commit/publish gap |
 | Outbox → in-process listener | Leased polling | At-least-once; duplicates possible |
-| Consumer effect + inbox marker | Same consumer transaction | Duplicate event can be ignored when InboxService is used correctly |
+| Consumer effect + inbox marker | Atomic inbox claim + same consumer transaction | Concurrent duplicates are rejected; handler failure rolls back the claim |
 | Checkout across modules | Persisted saga checkpoints | Eventual consistency; compensation may need reconciliation |
 | Payment/carrier | Sandbox adapters | No real external side effect currently |
 
