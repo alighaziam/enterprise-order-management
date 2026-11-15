@@ -32,7 +32,7 @@ flowchart LR
 | customer | Customer identity/profile | Customer module API |
 | catalog | Product, SKU, price | Catalog module API |
 | inventory | Stock and reservation lifecycle | Inventory operations |
-| order | Order, line snapshots, order state | Order operations |
+| order | Order, line snapshots, order state | Order operations and transactional OrderPlaced/OrderConfirmed/OrderCancelled events |
 | payment | Payment intent and payment state machine | Payment operations |
 | shipping | Shipment and delivery-address snapshot | Shipping operations |
 | outbox | Event envelope, relay metadata, inbox deduplication | Append/publish operations |
@@ -105,6 +105,7 @@ Use this query for inspection only. Do not manually mark events published or rep
 | Boundary | Mechanism | Guarantee / limitation |
 |---|---|---|
 | Order + inventory | One local PostgreSQL transaction | Atomic within this database |
+| Order state + order event | Same local transaction | OrderPlaced/OrderConfirmed/OrderCancelled cannot be lost between commit and event append |
 | Business write + outbox append | Same local transaction | No lost event due to a DB commit/publish gap |
 | Outbox → in-process listener | Leased polling | At-least-once; duplicates possible |
 | Consumer effect + inbox marker | Atomic inbox claim + same consumer transaction | Concurrent duplicates are rejected; handler failure rolls back the claim |
@@ -113,7 +114,7 @@ Use this query for inspection only. Do not manually mark events published or rep
 
 ## 7. Quality attributes and trade-offs
 
-- **Consistency:** local ACID transactions are preferred inside the modular monolith; saga compensation is used across workflow steps.
+- **Consistency:** local ACID transactions are preferred inside the modular monolith; saga compensation is used across workflow steps. Checkout and shipment event versions are monotonic and are backfilled from existing outbox history during migration.
 - **Resilience:** retries, leases, dead-letter state, idempotency keys, and fulfillment recovery cover selected failure modes.
 - **Maintainability:** module ownership and Spring Modulith checks discourage accidental coupling.
 - **Scalability:** database-backed relay claims can be shared by multiple application instances, but throughput and ordering guarantees have not been benchmarked.
