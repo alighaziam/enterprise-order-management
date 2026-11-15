@@ -4,8 +4,9 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 /**
- * Sandbox adapter contract. A real provider adapter must forward the stable
- * idempotency key to the provider for every retry of the same payment intent.
+ * Synchronous sandbox adapter contract. A real PSP integration must move to a
+ * persisted split-phase command/outcome flow so network calls do not hold database
+ * locks, and must forward the stable idempotency key for every retry.
  */
 public interface SandboxPaymentGateway {
     String authorize(UUID paymentId, BigDecimal amount, String currency, String idempotencyKey);
