@@ -207,8 +207,6 @@ function paint() {
 
 function desk() {
   const attention = state.attention;
-  const dead = state.deadLetters;
-  const reserved = state.reservedOrders;
   return `
     <p class="lede">${esc(t("lede.desk"))}</p>
     <section class="grid metrics">
