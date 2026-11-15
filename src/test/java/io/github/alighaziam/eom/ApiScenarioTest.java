@@ -45,6 +45,10 @@ class ApiScenarioTest {
         assertTrue(messages.contains("\u0627\u062c\u0631\u0627\u06cc \u062a\u0633\u0648\u06cc\u0647"));
         String script = http.get().uri("/assets/console.js").retrieve().body(String.class);
         assertTrue(script.contains("applyLocale"));
+        assertTrue(script.contains("status=COMPENSATION_REQUIRED"));
+        assertTrue(script.contains("status=FULFILLMENT_PENDING"));
+        assertTrue(script.contains("status=RESERVED"));
+        assertTrue(script.contains("state=dead"));
         String swagger = http.get().uri("/swagger-ui/index.html").retrieve().body(String.class);
         assertTrue(swagger.contains("Swagger UI"));
         String spec = http.get().uri("/v3/api-docs").retrieve().body(String.class);
