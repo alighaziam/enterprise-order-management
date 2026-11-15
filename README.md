@@ -31,7 +31,7 @@ The checkout orchestration persists a workflow checkpoint and immutable delivery
 
 If authorization/capture fails, the workflow voids an authorization when possible and releases the reservation. If order confirmation fails after capture, it attempts a refund and reservation release. If shipment creation fails after payment and stock commit, the workflow remains FULFILLMENT_PENDING; it does not silently undo completed financial/inventory actions. Failed compensations are recorded as COMPENSATION_REQUIRED for operator reconciliation. Shipment-creation failures retain the address snapshot and are retried by a scheduled worker with capped exponential delay; shipment creation is idempotent by order ID.
 
-Payment idempotency keys are claimed with an atomic insert-on-conflict operation before authorization, so concurrent requests with the same key resolve to one payment intent. The initial payment adapter is deterministic and sandbox-only. It does not connect to a bank, PSP, card network, or real money. It does not collect or store card PAN/CVV. The shipment carrier reference is also a local sandbox placeholder; no carrier API is called.
+Payment idempotency keys are claimed with an atomic insert-on-conflict operation before authorization, so concurrent requests with the same key resolve to one payment intent. Authorization is permitted only for a reserved order and only when the amount and currency exactly match the persisted order total. The initial payment adapter is deterministic and sandbox-only. It does not connect to a bank, PSP, card network, or real money. It does not collect or store card PAN/CVV. The shipment carrier reference is also a local sandbox placeholder; no carrier API is called.
 
 ## Transactional outbox and inbox
 
