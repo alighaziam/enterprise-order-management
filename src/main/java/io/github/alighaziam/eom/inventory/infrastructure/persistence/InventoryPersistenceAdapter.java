@@ -26,7 +26,7 @@ public class InventoryPersistenceAdapter implements InventoryStore {
 
     @Override
     public StockItem save(StockItem item) {
-        return toDomain(stockRepository.save(new StockItemEntity(
+        return toDomain(stockRepository.saveAndFlush(new StockItemEntity(
                 item.productId(), item.onHandQuantity(), item.reservedQuantity(), item.updatedAt()
         )));
     }
