@@ -36,6 +36,9 @@ public class OutboxRelay {
                 row.failed(exception.getMessage(), Instant.now());
             }
             repository.saveAndFlush(row);
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
         }
     }
 }
