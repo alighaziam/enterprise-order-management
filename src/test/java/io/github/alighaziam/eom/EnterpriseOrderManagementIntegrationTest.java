@@ -9,6 +9,7 @@ import io.github.alighaziam.eom.inventory.domain.ReservationStatus;
 import io.github.alighaziam.eom.inventory.domain.StockItem;
 import io.github.alighaziam.eom.order.application.OrderConflictException;
 import io.github.alighaziam.eom.order.application.OrderService;
+import io.github.alighaziam.eom.payment.PaymentOperations;
 import io.github.alighaziam.eom.order.domain.OrderStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ class EnterpriseOrderManagementIntegrationTest {
  @Autowired private ProductService productService;
  @Autowired private InventoryService inventoryService;
  @Autowired private OrderService orderService;
+ @Autowired private PaymentOperations paymentOperations;
 
  @Test void persistsCustomerProductAndStockAcrossModules(){
   String unique=UUID.randomUUID().toString();
@@ -61,6 +63,8 @@ class EnterpriseOrderManagementIntegrationTest {
   assertEquals(OrderStatus.RESERVED,placed.status());
   assertEquals(0,new BigDecimal("45.00").compareTo(placed.totalAmount()));
   assertEquals(7,inventoryService.find(product.id()).availableQuantity());
+  var payment=paymentOperations.authorize(placed.id(),placed.totalAmount(),placed.currency(),"integration-confirm-"+unique);
+  paymentOperations.capture(payment.id());
   assertEquals(OrderStatus.CONFIRMED,orderService.confirm(placed.id()).status());
   assertEquals(7,inventoryService.find(product.id()).onHandQuantity());
   assertEquals(OrderStatus.CONFIRMED,orderService.confirm(placed.id()).status());
