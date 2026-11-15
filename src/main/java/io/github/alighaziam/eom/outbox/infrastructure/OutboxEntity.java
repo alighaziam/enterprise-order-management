@@ -127,6 +127,7 @@ public class OutboxEntity {
 
     public UUID getEventId() { return eventId; }
     public String getEventType() { return eventType; }
+    public long getAggregateVersion() { return aggregateVersion; }
     public String getAggregateType() { return aggregateType; }
     public String getAggregateId() { return aggregateId; }
     public int getAttempts() { return attempts; }
