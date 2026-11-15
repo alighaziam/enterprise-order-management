@@ -6,6 +6,7 @@ import io.github.alighaziam.eom.inventory.domain.StockItem;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,11 +24,17 @@ public class InventoryService {
     }
 
     public StockItem initializeStock(UUID id, int quantity) {
+        if (id == null) throw new IllegalArgumentException("Product id is required.");
         if (quantity < 0) throw new IllegalArgumentException("Initial stock cannot be negative.");
         if (store.findByProductId(id).isPresent()) {
             throw new IllegalStateException("Stock has already been initialized for product: " + id);
         }
-        return store.save(new StockItem(id, quantity, 0, Instant.now()));
+        try {
+            return store.save(new StockItem(id, quantity, 0, Instant.now()));
+        } catch (DataIntegrityViolationException concurrentInitialization) {
+            throw new IllegalStateException("Stock has already been initialized for product: " + id,
+                    concurrentInitialization);
+        }
     }
 
     public Reservation reserve(UUID productId, int quantity) {
@@ -70,7 +77,8 @@ public class InventoryService {
 
     public StockItem setOnHand(UUID productId, int quantity) {
         if (quantity < 0) throw new IllegalArgumentException("On-hand quantity cannot be negative.");
-        StockItem current = find(productId);
+        StockItem current = store.findByProductIdForUpdate(productId)
+                .orElseThrow(() -> new StockItemNotFoundException(productId));
         if (quantity < current.reservedQuantity()) {
             throw new IllegalStateException("On-hand quantity cannot be lower than the reserved quantity.");
         }
