@@ -24,7 +24,7 @@ class OutboxRelayTest {
         OutboxEntity event = new OutboxEntity(UUID.randomUUID(), "OrderPlaced", 1, created,
                 "Order", "order-1", 1, "correlation-1", null, "{}", created);
 
-        when(claimService.claimBatch(50)).thenReturn(List.of(event));
+        when(claimService.claimBatch(10)).thenReturn(List.of(event));
         doThrow(new IllegalStateException("broker unavailable"))
                 .when(publisher).publish(any(IntegrationEvent.class));
 
@@ -45,7 +45,7 @@ class OutboxRelayTest {
         OutboxEntity event = new OutboxEntity(UUID.randomUUID(), "OrderPlaced", 1, created,
                 "Order", "order-1", 1, "correlation-1", null, "{}", created);
 
-        when(claimService.claimBatch(50)).thenReturn(List.of(event));
+        when(claimService.claimBatch(10)).thenReturn(List.of(event));
 
         new OutboxRelay(claimService, repository, publisher).publishPending();
 
