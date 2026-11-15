@@ -54,7 +54,8 @@ class OrderPaymentGuardIntegrationTest {
         assertEquals(OrderState.RESERVED, orders.state(order.id()));
 
         payments.voidAuthorization(payment.id());
-        assertEquals(OrderState.CANCELLED, orders.cancelForCheckout(order.id()).status());
+        orders.cancelForCheckout(order.id());
+        assertEquals(OrderState.CANCELLED, orders.state(order.id()));
     }
 
     @Test
@@ -64,7 +65,8 @@ class OrderPaymentGuardIntegrationTest {
                 "confirm-guard-" + UUID.randomUUID());
         payments.capture(payment.id());
 
-        assertEquals(OrderState.CONFIRMED, orders.confirmForCheckout(order.id()).status());
+        orders.confirmForCheckout(order.id());
+        assertEquals(OrderState.CONFIRMED, orders.state(order.id()));
     }
 
     private OrderOperations.OrderSummary createReservedOrder() {
