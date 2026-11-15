@@ -39,7 +39,7 @@ public class ProductService {
   return store.save(new Product(current.id(), current.sku(), name.trim(), description==null?null:description.trim(), price, normalizedCurrency, current.active(), current.createdAt()));
  }
  public Product setActive(UUID id, boolean active){
-  Product current=store.findById(id).orElseThrow(()->new ProductNotFoundException(id));
+  Product current=store.findByIdForUpdate(id).orElseThrow(()->new ProductNotFoundException(id));
   return store.save(new Product(current.id(), current.sku(), current.name(), current.description(), current.unitPrice(), current.currency(), active, current.createdAt()));
  }
  @Transactional(readOnly=true) public Page<Product> search(String q, Boolean active, int page, int size){
