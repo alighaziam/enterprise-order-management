@@ -25,7 +25,7 @@ import org.springframework.data.domain.Sort; import org.springframework.stereoty
 
   var entity=repository.findById(id)
    .orElseThrow(()->new IllegalStateException("Payment intent reservation was not persisted."));
-  String reference=gateway.authorize(id,amount,currency);
+  String reference=gateway.authorize(id,amount,currency,key);
   entity.authorized(reference,Instant.now());
   var saved=repository.saveAndFlush(entity);
   outbox.append("PaymentAuthorized","PaymentIntent",id.toString(),1,orderId.toString(),null,
