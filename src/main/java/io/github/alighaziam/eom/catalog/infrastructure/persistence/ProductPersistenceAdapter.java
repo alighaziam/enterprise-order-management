@@ -13,6 +13,7 @@ public class ProductPersistenceAdapter implements ProductStore {
  public ProductPersistenceAdapter(SpringDataProductRepository repository){this.repository=repository;}
  public Product save(Product p){return toDomain(repository.saveAndFlush(new ProductEntity(p.id(),p.sku(),p.name(),p.description(),p.unitPrice(),p.currency(),p.active(),p.createdAt())));}
  public Optional<Product> findById(UUID id){return repository.findById(id).map(ProductPersistenceAdapter::toDomain);}
+ public Optional<Product> findByIdForUpdate(UUID id){return repository.findByIdForUpdate(id).map(ProductPersistenceAdapter::toDomain);}
  public List<Product> findRecent(){return repository.findTop40ByOrderByCreatedAtDesc().stream().map(ProductPersistenceAdapter::toDomain).toList();}
  public boolean existsBySku(String sku){return repository.existsBySku(sku);}
  public Page<Product> search(String q, Boolean active, Pageable pageable){return repository.search(q, active, pageable).map(ProductPersistenceAdapter::toDomain);}
