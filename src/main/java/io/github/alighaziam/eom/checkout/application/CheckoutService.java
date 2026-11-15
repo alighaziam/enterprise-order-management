@@ -244,8 +244,11 @@ public class CheckoutService implements CheckoutOperations {
         DeliveryAddress address = request.deliveryAddress();
         if (address == null || blank(address.recipientName()) || blank(address.addressLine1())
                 || blank(address.city()) || address.countryCode() == null
-                || !address.countryCode().trim().matches("[A-Za-z]{2}")) {
-            throw new IllegalArgumentException("A recipient, street, city, and ISO country code are required.");
+                || !address.countryCode().trim().matches("[A-Za-z]{2}")
+                || tooLong(address.recipientName(), 180) || tooLong(address.addressLine1(), 240)
+                || tooLong(address.addressLine2(), 240) || tooLong(address.city(), 120)
+                || tooLong(address.postalCode(), 40) || tooLong(address.phone(), 40)) {
+            throw new IllegalArgumentException("Delivery address fields are missing, invalid, or too long.");
         }
     }
 
@@ -265,6 +268,10 @@ public class CheckoutService implements CheckoutOperations {
 
     private static String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static boolean tooLong(String value, int maxLength) {
+        return value != null && value.trim().length() > maxLength;
     }
 
     private static boolean blank(String value) {
