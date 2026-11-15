@@ -5,6 +5,7 @@ import io.github.alighaziam.eom.catalog.CatalogProduct;
 import io.github.alighaziam.eom.customer.CustomerOperations;
 import io.github.alighaziam.eom.inventory.InventoryOperations;
 import io.github.alighaziam.eom.order.OrderOperations;
+import io.github.alighaziam.eom.order.OrderCancellationGuard;
 import io.github.alighaziam.eom.order.OrderState;
 import io.github.alighaziam.eom.order.domain.Order;
 import io.github.alighaziam.eom.order.domain.OrderLine;
@@ -34,15 +35,17 @@ public class OrderService implements OrderOperations {
     private final CatalogOperations catalog;
     private final InventoryOperations inventory;
     private final OutboxOperations outbox;
+    private final OrderCancellationGuard cancellationGuard;
 
     public OrderService(OrderStore store, CustomerOperations customers,
                         CatalogOperations catalog, InventoryOperations inventory,
-                        OutboxOperations outbox) {
+                        OutboxOperations outbox, OrderCancellationGuard cancellationGuard) {
         this.store = store;
         this.customers = customers;
         this.catalog = catalog;
         this.inventory = inventory;
         this.outbox = outbox;
+        this.cancellationGuard = cancellationGuard;
     }
 
     public Order place(UUID customerId, List<OrderRequestLine> requested) {
@@ -140,6 +143,7 @@ public class OrderService implements OrderOperations {
         if (order.status() != OrderStatus.RESERVED) {
             throw new OrderConflictException("Only reserved orders can be cancelled.");
         }
+        cancellationGuard.assertCanCancel(id);
 
         try {
             for (OrderLine line : order.lines()) {
