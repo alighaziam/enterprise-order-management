@@ -12,6 +12,8 @@ import java.time.Instant;
 @Component
 public class OutboxRelay {
 
+    private static final int BATCH_SIZE = 10;
+
     private final OutboxClaimService claimService;
     private final OutboxRepository repository;
     private final OutboxEventPublisher publisher;
@@ -26,7 +28,7 @@ public class OutboxRelay {
 
     @Scheduled(fixedDelayString = "${app.outbox.poll-interval-ms:1000}")
     public void publishPending() {
-        for (OutboxEntity row : claimService.claimBatch(50)) {
+        for (OutboxEntity row : claimService.claimBatch(BATCH_SIZE)) {
             try {
                 publisher.publish(row.toEvent());
                 row.published(Instant.now());
