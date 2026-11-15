@@ -9,9 +9,9 @@ public interface OrderOperations {
     OrderSummary confirmForCheckout(UUID orderId);
     OrderSummary cancelForCheckout(UUID orderId);
     OrderState state(UUID orderId);
-    OrderPaymentDetails paymentDetails(UUID orderId);
+    OrderDetails orderDetails(UUID orderId);
 
     record OrderLineRequest(UUID productId, int quantity) { }
     record OrderSummary(UUID id, BigDecimal totalAmount, String currency) { }
-    record OrderPaymentDetails(UUID id, BigDecimal totalAmount, String currency, OrderState state) { }
+    record OrderDetails(UUID id, BigDecimal totalAmount, String currency, OrderState state) { }
 }
