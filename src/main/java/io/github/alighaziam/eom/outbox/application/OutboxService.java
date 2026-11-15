@@ -11,7 +11,7 @@ import io.github.alighaziam.eom.outbox.OutboxOperations; import io.github.aligha
  }
  @Transactional(readOnly=true) public long deadLetterCount(){return repository.countByDeadLetteredAtIsNotNull();}
  @Transactional public OutboxView replay(UUID id){
-  OutboxEntity row=repository.findById(id).orElseThrow(()->new OutboxEventNotFoundException(id));
+  OutboxEntity row=repository.findByIdForUpdate(id).orElseThrow(()->new OutboxEventNotFoundException(id));
   if(row.getDeadLetteredAt()==null) throw new IllegalStateException("Only dead-lettered events can be replayed.");
   row.requeue(Instant.now());
   return view(repository.save(row));
