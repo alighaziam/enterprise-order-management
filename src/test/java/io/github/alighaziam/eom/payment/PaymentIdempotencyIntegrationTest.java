@@ -34,8 +34,8 @@ class PaymentIdempotencyIntegrationTest {
         UUID orderId = UUID.randomUUID();
         String key = "parallel-payment-" + UUID.randomUUID();
         BigDecimal amount = new BigDecimal("42.50");
-        when(orders.paymentDetails(orderId)).thenReturn(
-                new OrderOperations.OrderPaymentDetails(orderId, amount, "EUR", OrderState.RESERVED));
+        when(orders.orderDetails(orderId)).thenReturn(
+                new OrderOperations.OrderDetails(orderId, amount, "EUR", OrderState.RESERVED));
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
 
