@@ -12,6 +12,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -22,6 +23,7 @@ public class SecurityConfiguration {
     @ConditionalOnProperty(name = "app.security.enabled", havingValue = "true", matchIfMissing = true)
     SecurityFilterChain apiSecurity(HttpSecurity http) throws Exception {
         return http
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(csrf -> csrf.disable())
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) -> writeProblem(
@@ -64,6 +66,7 @@ public class SecurityConfiguration {
     @ConditionalOnProperty(name = "app.security.enabled", havingValue = "false")
     SecurityFilterChain isolatedTestSecurity(HttpSecurity http) throws Exception {
         return http
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
                 .build();
