@@ -33,7 +33,7 @@ Payment and Shipping publish narrow root-package APIs. Their persistence remains
 
 Payment states: REQUESTED, AUTHORIZED, CAPTURED, FAILED, VOIDED, REFUND_PENDING, REFUNDED. State transitions are explicit and validated. Authorization and capture are separate commands.
 
-Every provider command has a stable idempotency key derived from a persisted payment operation, not a transient HTTP request. Store provider references and sanitized outcomes; never persist card PAN/CVV or log secrets. The initial adapter is a deterministic sandbox/fake gateway. Real provider credentials and money movement are out of scope until separately approved.
+Every provider command has a stable idempotency key derived from a persisted payment operation, not a transient HTTP request. The payment module claims request keys atomically and validates the requested amount/currency against the locked reserved order before authorization. Store provider references and sanitized outcomes; never persist card PAN/CVV or log secrets. The initial adapter is a deterministic sandbox/fake gateway. Real provider credentials and money movement are out of scope until separately approved.
 
 A provider timeout is an **unknown outcome**, not a failure. Query/reconcile by idempotency key or provider reference before retrying a non-idempotent financial operation. Refund and void are separate compensating actions and must be auditable.
 
