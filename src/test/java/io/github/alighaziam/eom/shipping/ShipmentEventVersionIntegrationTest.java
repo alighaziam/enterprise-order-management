@@ -53,7 +53,7 @@ class ShipmentEventVersionIntegrationTest {
         var order = orders.placeForCheckout(customer.id(),
                 List.of(new OrderOperations.OrderLineRequest(product.id(), 1)));
         DeliveryAddress destination = new DeliveryAddress("Recipient", "Main Street 1", null,
-                "Berlin", "10115", "DE", "+491234567");
+                "Berlin", "10115", "de", "+491234567");
 
         assertThrows(IllegalStateException.class, () -> shipping.create(order.id(), destination),
                 "A reserved order must not be fulfilled.");
@@ -63,6 +63,7 @@ class ShipmentEventVersionIntegrationTest {
         payments.capture(payment.id());
         orders.confirmForCheckout(order.id());
         var shipment = shipping.create(order.id(), destination);
+        assertEquals("DE", shipment.destination().countryCode());
 
         assertEquals(shipment.id(), shipping.create(order.id(), destination).id());
         assertThrows(IllegalStateException.class, () -> shipping.create(order.id(),
