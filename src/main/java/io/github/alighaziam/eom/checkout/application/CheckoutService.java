@@ -18,6 +18,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -70,7 +74,7 @@ public class CheckoutService implements CheckoutOperations {
 
         try {
             payment = payments.authorize(orderId, reservation.order().totalAmount(),
-                    reservation.order().currency(), "checkout:" + request.idempotencyKey());
+                    reservation.order().currency(), paymentIdempotencyKey(request.idempotencyKey()));
             states.recordPayment(workflowId, payment.id(), CheckoutStatus.PAYMENT_AUTHORIZED, Instant.now());
 
             payment = payments.capture(payment.id());
@@ -207,6 +211,16 @@ public class CheckoutService implements CheckoutOperations {
             orders.cancelForCheckout(workflow.getOrderId());
         } else if (order == OrderState.CONFIRMED) {
             throw new IllegalStateException("The order is confirmed. Inspect it before releasing stock.");
+        }
+    }
+
+    private static String paymentIdempotencyKey(String checkoutKey) {
+        try {
+            String digest = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(checkoutKey.getBytes(StandardCharsets.UTF_8)));
+            return "checkout:" + digest;
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
         }
     }
 
