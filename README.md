@@ -41,7 +41,7 @@ Failed publications increment the attempt counter and are rescheduled with expon
 
 The envelope carries event ID, type, schema version, occurrence time, aggregate identity/version, correlation/causation IDs, and payload. Delivery remains at-least-once: a process crash after publication but before `published_at` is committed can cause a duplicate. Consumers should use InboxService.processOnce so the business handler and deduplication marker commit in one transaction. The inbox uses an atomic PostgreSQL insert-on-conflict claim, preventing concurrent deliveries from both running the same consumer handler. The inbox primary key is consumer plus event ID.
 
-This is a database-leased in-process relay, not an external broker. A claim skips a later event while any earlier event for the same aggregate is still unpublished, including events that are leased, waiting for backoff, or dead-lettered. Dead letters can be replayed from the operator desk. Actuator health reports dead-letter and compensation counts at `/actuator/health`; metrics are at `/actuator/metrics`. A lease expiry during a very slow publish can still result in duplicate delivery; consumers must remain idempotent.
+The default transport is the in-process Spring event publisher. An optional Kafka transport is available for broker-backed deployments: set `OUTBOX_TRANSPORT=kafka`, set `KAFKA_BOOTSTRAP_SERVERS` (use `kafka:9092` from Compose or `localhost:9092` from the host), and start the optional broker with `docker compose --profile broker up -d --build`. The default topic is `eom.outbox.events`; messages are keyed by aggregate type and ID, and the relay waits for the broker acknowledgement before marking an outbox row published. Delivery remains at-least-once, so consumers must deduplicate with the inbox helper. A claim skips a later event while any earlier event for the same aggregate is still unpublished, including events that are leased, waiting for backoff, or dead-lettered. Dead letters can be replayed from the operator desk. Actuator health reports dead-letter and compensation counts at `/actuator/health`; metrics are at `/actuator/metrics`. A lease expiry during a very slow publish can still result in duplicate delivery; consumers must remain idempotent.
 
 For operational inspection of dead letters:
 
@@ -140,7 +140,7 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Flyway schema and Spring Modulith boundary verification
 - [x] PostgreSQL-backed integration tests and GitHub Actions verification
 - [x] Per-aggregate event ordering, actuator health and metrics, and dead-letter replay on the operator desk
-- [ ] External broker adapter
+- [x] Optional Kafka outbox adapter with aggregate-key ordering and acknowledgement handling
 - [ ] Real payment provider and carrier integrations (require separate credentials, security review, and approval)
 - [x] Scheduled fulfillment recovery for FULFILLMENT_PENDING using persisted address snapshots and exponential retry delay
 - [x] Versioned Order, Checkout, and Shipment lifecycle events written transactionally to the outbox
