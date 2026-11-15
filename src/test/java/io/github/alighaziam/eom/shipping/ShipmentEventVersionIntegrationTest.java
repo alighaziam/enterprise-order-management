@@ -4,6 +4,7 @@ import io.github.alighaziam.eom.catalog.application.ProductService;
 import io.github.alighaziam.eom.customer.application.CustomerService;
 import io.github.alighaziam.eom.inventory.application.InventoryService;
 import io.github.alighaziam.eom.order.OrderOperations;
+import io.github.alighaziam.eom.payment.PaymentOperations;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxEntity;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxRepository;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ class ShipmentEventVersionIntegrationTest {
     @Autowired
     private OrderOperations orders;
 
+    @Autowired
+    private PaymentOperations payments;
+
     @Test
     void shipmentEventsUseStrictlyIncreasingAggregateVersionsAndRequireConfirmedOrders() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
@@ -54,6 +58,9 @@ class ShipmentEventVersionIntegrationTest {
         assertThrows(IllegalStateException.class, () -> shipping.create(order.id(), destination),
                 "A reserved order must not be fulfilled.");
 
+        var payment = payments.authorize(order.id(), order.totalAmount(), order.currency(),
+                "shipment-test-" + suffix);
+        payments.capture(payment.id());
         orders.confirmForCheckout(order.id());
         var shipment = shipping.create(order.id(), destination);
 
