@@ -21,7 +21,7 @@ Each module owns its domain and persistence. Cross-module collaboration uses pub
 
 A normal order placement reserves inventory and writes order state in one PostgreSQL transaction. Confirming an order consumes all reservations; cancelling releases them. Repeated confirm/cancel operations are idempotent and order transitions are locked.
 
-The checkout orchestration persists a workflow checkpoint and immutable delivery-address snapshot at each step:
+The checkout orchestration persists a workflow checkpoint and immutable delivery-address snapshot at each step. Each checkpoint update and its versioned outbox event are committed in the same short PostgreSQL transaction; payment and carrier calls remain outside those transactions. Workflow state writes use row-level locking so competing recovery workers cannot silently overwrite a newer checkpoint:
 
 1. Place order and reserve stock.
 2. Authorize payment using a stable idempotency key.
@@ -39,7 +39,7 @@ Business changes and outgoing event rows are saved in the same local database tr
 
 Failed publications increment the attempt counter and are rescheduled with exponential backoff (2 seconds initially, capped at 1 hour). After 12 failed attempts, a row is marked with `dead_lettered_at` and is excluded from automatic claims for operator inspection. Expired leases make abandoned claims eligible again. Successful publication records `published_at` and clears the lease.
 
-The envelope carries event ID, type, schema version, occurrence time, aggregate identity/version, correlation/causation IDs, and payload. Delivery remains at-least-once: a process crash after publication but before `published_at` is committed can cause a duplicate. Consumers should use InboxService.processOnce so the business handler and deduplication marker commit in one transaction. The inbox primary key is consumer plus event ID.
+The envelope carries event ID, type, schema version, occurrence time, aggregate identity/version, correlation/causation IDs, and payload. Delivery remains at-least-once: a process crash after publication but before `published_at` is committed can cause a duplicate. Consumers should use InboxService.processOnce so the business handler and deduplication marker commit in one transaction. The inbox uses an atomic PostgreSQL insert-on-conflict claim, preventing concurrent deliveries from both running the same consumer handler. The inbox primary key is consumer plus event ID.
 
 This is a database-leased in-process relay, not an external broker. A claim skips a later event while any earlier event for the same aggregate is still unpublished, including events that are leased, waiting for backoff, or dead-lettered. Dead letters can be replayed from the operator desk. Actuator health reports dead-letter and compensation counts at `/actuator/health`; metrics are at `/actuator/metrics`. A lease expiry during a very slow publish can still result in duplicate delivery; consumers must remain idempotent.
 
@@ -163,7 +163,7 @@ Required authorities are derived from the JWT `scope` or `scp` claim using Sprin
 | Checkout reconciliation, outbox replay, management metrics | — | `operations.admin` |
 | Outbox inspection | `outbox.read` | `operations.admin` |
 
-All unmatched API paths are denied. Missing or invalid tokens return HTTP 401, and a valid token without the required scope returns HTTP 403. Both responses use `application/problem+json`. Only health and info are public actuator endpoints; health details are not exposed. Swagger is left reachable for the local operator experience and has an Authorize action for the same bearer token; restrict it at the ingress layer or disable it in a production profile if the API contract is sensitive.
+All unmatched API paths are denied. The bearer-token API uses stateless sessions and does not create server-side HTTP sessions. Missing or invalid tokens return HTTP 401, and a valid token without the required scope returns HTTP 403. Both responses use `application/problem+json`. Only health and info are public actuator endpoints; health details are not exposed. Swagger is left reachable for the local operator experience and has an Authorize action for the same bearer token; restrict it at the ingress layer or disable it in a production profile if the API contract is sensitive.
 
 Set `WSO2_ISSUER_URI` and `WSO2_JWKS_URI` to the values for the deployed WSO2 Identity Server, and install the correct CA chain in the JVM truststore. `APP_SECURITY_ENABLED=false` is an explicit test-only bypass; never set it in a deployed environment.
 
