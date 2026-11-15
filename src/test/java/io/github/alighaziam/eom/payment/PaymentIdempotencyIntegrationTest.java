@@ -1,23 +1,24 @@
 package io.github.alighaziam.eom.payment;
 
+import io.github.alighaziam.eom.catalog.application.ProductService;
+import io.github.alighaziam.eom.customer.application.CustomerService;
+import io.github.alighaziam.eom.inventory.application.InventoryService;
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
-import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxRepository;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
-import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
 
 @SpringBootTest
 class PaymentIdempotencyIntegrationTest {
@@ -31,21 +32,29 @@ class PaymentIdempotencyIntegrationTest {
     @Autowired
     private OutboxRepository outbox;
 
-    @MockitoBean
+    @Autowired
     private OrderOperations orders;
+
+    @Autowired
+    private CustomerService customers;
+
+    @Autowired
+    private ProductService products;
+
+    @Autowired
+    private InventoryService inventory;
 
     @Test
     void concurrentAuthorizationRequestsWithTheSameKeyCreateOnePayment() throws Exception {
-        UUID orderId = UUID.randomUUID();
-        String key = "parallel-payment-" + UUID.randomUUID();
         BigDecimal amount = new BigDecimal("42.50");
-        stubReservedOrder(orderId, amount);
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
+        String key = "parallel-payment-" + UUID.randomUUID();
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
 
         try (var executor = Executors.newFixedThreadPool(2)) {
-            var first = executor.submit(() -> authorize(orderId, amount, key, ready, start));
-            var second = executor.submit(() -> authorize(orderId, amount, key, ready, start));
+            var first = executor.submit(() -> authorize(order.id(), amount, key, ready, start));
+            var second = executor.submit(() -> authorize(order.id(), amount, key, ready, start));
 
             assertTrue(ready.await(10, TimeUnit.SECONDS), "Both authorization requests should be ready");
             start.countDown();
@@ -62,10 +71,9 @@ class PaymentIdempotencyIntegrationTest {
 
     @Test
     void concurrentCaptureRequestsPublishOnlyOneCaptureTransition() throws Exception {
-        UUID orderId = UUID.randomUUID();
         BigDecimal amount = new BigDecimal("19.50");
-        stubReservedOrder(orderId, amount);
-        PaymentIntent payment = payments.authorize(orderId, amount, "EUR",
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
+        PaymentIntent payment = payments.authorize(order.id(), amount, order.currency(),
                 "capture-race-" + UUID.randomUUID());
         CountDownLatch ready = new CountDownLatch(2);
         CountDownLatch start = new CountDownLatch(1);
@@ -82,53 +90,66 @@ class PaymentIdempotencyIntegrationTest {
 
         var events = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
                 "PaymentIntent", payment.id().toString());
-        assertEquals(java.util.List.of("PaymentAuthorized", "PaymentCaptured"),
+        assertEquals(List.of("PaymentAuthorized", "PaymentCaptured"),
                 events.stream().map(event -> event.getEventType()).toList());
-        assertEquals(java.util.List.of(1L, 2L),
+        assertEquals(List.of(1L, 2L),
                 events.stream().map(event -> event.getAggregateVersion()).toList());
     }
 
     @Test
     void rejectsReusingAnIdempotencyKeyWithDifferentPaymentDetails() {
+        BigDecimal amount = new BigDecimal("12.00");
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
         String key = "payment-payload-" + UUID.randomUUID();
-        UUID orderId = UUID.randomUUID();
-        stubReservedOrder(orderId, new BigDecimal("12.00"));
 
-        payments.authorize(orderId, new BigDecimal("12.00"), "EUR", key);
+        payments.authorize(order.id(), amount, order.currency(), key);
 
         assertThrows(IllegalStateException.class, () ->
-                payments.authorize(orderId, new BigDecimal("13.00"), "EUR", key));
+                payments.authorize(order.id(), new BigDecimal("13.00"), order.currency(), key));
     }
 
     @Test
     void preventsTwoActivePaymentsForTheSameOrder() {
-        UUID orderId = UUID.randomUUID();
         BigDecimal amount = new BigDecimal("31.00");
-        stubReservedOrder(orderId, amount);
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
 
-        payments.authorize(orderId, amount, "EUR", "first-payment-" + UUID.randomUUID());
+        payments.authorize(order.id(), amount, order.currency(), "first-payment-" + UUID.randomUUID());
 
         assertThrows(IllegalStateException.class, () ->
-                payments.authorize(orderId, amount, "EUR", "second-payment-" + UUID.randomUUID()));
+                payments.authorize(order.id(), amount, order.currency(), "second-payment-" + UUID.randomUUID()));
     }
 
     @Test
     void rejectsAmountThatDoesNotMatchTheReservedOrder() {
-        UUID orderId = UUID.randomUUID();
-        stubReservedOrder(orderId, new BigDecimal("25.00"));
+        BigDecimal amount = new BigDecimal("25.00");
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
 
         assertThrows(IllegalArgumentException.class, () ->
-                payments.authorize(orderId, new BigDecimal("24.99"), "EUR", "wrong-total-" + UUID.randomUUID()));
+                payments.authorize(order.id(), new BigDecimal("24.99"), order.currency(),
+                        "wrong-total-" + UUID.randomUUID()));
     }
 
     @Test
     void rejectsAuthorizationForAnOrderThatIsNoLongerReserved() {
-        UUID orderId = UUID.randomUUID();
-        when(orders.orderDetails(orderId)).thenReturn(Optional.of(
-                new OrderOperations.OrderDetails(orderId, new BigDecimal("25.00"), "EUR", OrderState.CONFIRMED)));
+        BigDecimal amount = new BigDecimal("25.00");
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
+        PaymentIntent payment = payments.authorize(order.id(), amount, order.currency(),
+                "confirm-order-" + UUID.randomUUID());
+        payments.capture(payment.id());
+        orders.confirmForCheckout(order.id());
 
+        assertEquals(OrderState.CONFIRMED, orders.state(order.id()));
         assertThrows(IllegalStateException.class, () ->
-                payments.authorize(orderId, new BigDecimal("25.00"), "EUR", "confirmed-" + UUID.randomUUID()));
+                payments.authorize(order.id(), amount, order.currency(), "confirmed-" + UUID.randomUUID()));
+    }
+
+    private OrderOperations.OrderSummary createReservedOrder(BigDecimal amount) {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        var customer = customers.create("Payment Customer", "payment-" + suffix + "@example.com");
+        var product = products.create("PAY-" + suffix, "Payment Product", "Test item", amount, "EUR");
+        inventory.initializeStock(product.id(), 2);
+        return orders.placeForCheckout(customer.id(),
+                List.of(new OrderOperations.OrderLineRequest(product.id(), 1)));
     }
 
     private PaymentIntent capture(UUID paymentId, CountDownLatch ready, CountDownLatch start) throws Exception {
@@ -137,11 +158,6 @@ class PaymentIdempotencyIntegrationTest {
             throw new IllegalStateException("Timed out waiting for concurrent capture");
         }
         return payments.capture(paymentId);
-    }
-
-    private void stubReservedOrder(UUID orderId, BigDecimal amount) {
-        when(orders.orderDetails(orderId)).thenReturn(Optional.of(
-                new OrderOperations.OrderDetails(orderId, amount, "EUR", OrderState.RESERVED)));
     }
 
     private PaymentIntent authorize(UUID orderId, BigDecimal amount, String key,
