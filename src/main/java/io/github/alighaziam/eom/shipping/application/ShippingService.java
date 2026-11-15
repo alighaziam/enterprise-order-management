@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -36,6 +37,7 @@ public class ShippingService implements ShippingOperations {
     @Transactional
     public Shipment create(UUID orderId, DeliveryAddress address) {
         validate(orderId, address);
+        address = normalize(address);
 
         OrderOperations.OrderDetails order = orders.orderDetails(orderId)
                 .orElseThrow(() -> new IllegalArgumentException("Order does not exist: " + orderId));
@@ -113,10 +115,25 @@ public class ShippingService implements ShippingOperations {
     private static void validate(UUID orderId, DeliveryAddress address) {
         if (orderId == null || address == null || blank(address.recipientName())
                 || blank(address.addressLine1()) || blank(address.city())
-                || address.countryCode() == null || !address.countryCode().matches("[A-Z]{2}")) {
+                || address.countryCode() == null || !address.countryCode().trim().matches("[A-Za-z]{2}")) {
             throw new IllegalArgumentException(
                     "Order and complete delivery address with ISO country code are required.");
         }
+    }
+
+    private static DeliveryAddress normalize(DeliveryAddress address) {
+        return new DeliveryAddress(
+                address.recipientName().trim(),
+                address.addressLine1().trim(),
+                trimToNull(address.addressLine2()),
+                address.city().trim(),
+                trimToNull(address.postalCode()),
+                address.countryCode().trim().toUpperCase(Locale.ROOT),
+                trimToNull(address.phone()));
+    }
+
+    private static String trimToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private static boolean blank(String value) {
