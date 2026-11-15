@@ -65,7 +65,7 @@ CHECKOUT=$(curl -fsS -X POST "$BASE_URL/api/v1/checkouts" \
     \"idempotencyKey\":\"demo-checkout-$(date +%s)\"
   }")
 echo "$CHECKOUT" | jq
-CHECKOUT_ID=$(echo "$CHECKOUT" | jq -r '.id')
+CHECKOUT_ID=$(echo "$CHECKOUT" | jq -r '.workflowId')
 curl -fsS "$BASE_URL/api/v1/checkouts/$CHECKOUT_ID" | jq
 ```
 
