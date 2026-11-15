@@ -1,5 +1,5 @@
 package io.github.alighaziam.eom.payment.application;
-import io.github.alighaziam.eom.order.OrderOperations; import io.github.alighaziam.eom.order.OrderState; import io.github.alighaziam.eom.order.application.OrderNotFoundException; import io.github.alighaziam.eom.outbox.OutboxOperations; import io.github.alighaziam.eom.payment.*; import io.github.alighaziam.eom.payment.infrastructure.*; import org.springframework.data.domain.Page;
+import io.github.alighaziam.eom.order.OrderOperations; import io.github.alighaziam.eom.order.OrderState; import io.github.alighaziam.eom.outbox.OutboxOperations; import io.github.alighaziam.eom.payment.*; import io.github.alighaziam.eom.payment.infrastructure.*; import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional; import java.math.BigDecimal; import java.time.Instant; import java.util.List; import java.util.UUID;
 @Service public class PaymentService implements PaymentOperations {
@@ -12,12 +12,8 @@ import org.springframework.data.domain.Sort; import org.springframework.stereoty
   var replay=repository.findByIdempotencyKey(key);
   if(replay.isPresent()) return validateReplay(replay.get(),orderId,amount,currency);
 
-  OrderOperations.OrderDetails order;
-  try {
-   order=orders.orderDetails(orderId);
-  } catch (OrderNotFoundException missing) {
-   throw new IllegalArgumentException("Order does not exist: " + orderId,missing);
-  }
+  OrderOperations.OrderDetails order=orders.orderDetails(orderId)
+   .orElseThrow(()->new IllegalArgumentException("Order does not exist: " + orderId));
   if(order.state()!=OrderState.RESERVED)
    throw new IllegalStateException("Payment can only be authorized for a reserved order.");
   if(order.totalAmount().compareTo(amount)!=0 || !order.currency().equals(currency))
