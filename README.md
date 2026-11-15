@@ -111,7 +111,7 @@ Copy `.env.example` to `.env` and set a strong local `DB_PASSWORD` plus the exac
     docker compose up -d --build
     docker compose down
 
-Run `docker/prepare.ps1` again after Java or page changes, then `docker compose up -d --build`. The desk is at http://localhost:8080 and Swagger at http://localhost:8080/swagger-ui.html. `docker compose down` keeps the database volume. Add `-v` when the volume should be removed too.
+Run `docker/prepare.ps1` again after Java or page changes, then `docker compose up -d --build`. The desk is at http://localhost:8080 and Swagger at http://localhost:8080/swagger-ui.html. On a phone, the same desk keeps a sideways section list, full-width controls, and can be added to the Android home screen. `docker compose down` keeps the database volume. Add `-v` when the volume should be removed too.
 
 Run verification on the host, with Java 25 and Maven:
 

@@ -29,7 +29,7 @@ public class SecurityConfiguration {
                         .accessDeniedHandler((request, response, exception) -> writeProblem(
                                 response, HttpStatus.FORBIDDEN, "The access token does not include the required scope.")))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/", "/index.html", "/favicon.ico", "/assets/**",
+                        .requestMatchers("/", "/index.html", "/favicon.ico", "/manifest.webmanifest", "/assets/**",
                                 "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/actuator/**").hasAuthority("SCOPE_operations.admin")
