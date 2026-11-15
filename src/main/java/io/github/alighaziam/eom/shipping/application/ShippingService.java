@@ -115,9 +115,12 @@ public class ShippingService implements ShippingOperations {
     private static void validate(UUID orderId, DeliveryAddress address) {
         if (orderId == null || address == null || blank(address.recipientName())
                 || blank(address.addressLine1()) || blank(address.city())
-                || address.countryCode() == null || !address.countryCode().trim().matches("[A-Za-z]{2}")) {
+                || address.countryCode() == null || !address.countryCode().trim().matches("[A-Za-z]{2}")
+                || tooLong(address.recipientName(), 180) || tooLong(address.addressLine1(), 240)
+                || tooLong(address.addressLine2(), 240) || tooLong(address.city(), 120)
+                || tooLong(address.postalCode(), 40) || tooLong(address.phone(), 40)) {
             throw new IllegalArgumentException(
-                    "Order and complete delivery address with ISO country code are required.");
+                    "Order and complete delivery address with valid field lengths are required.");
         }
     }
 
@@ -134,6 +137,10 @@ public class ShippingService implements ShippingOperations {
 
     private static String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private static boolean tooLong(String value, int maxLength) {
+        return value != null && value.trim().length() > maxLength;
     }
 
     private static boolean blank(String value) {
