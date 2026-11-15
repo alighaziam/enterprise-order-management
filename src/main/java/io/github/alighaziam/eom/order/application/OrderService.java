@@ -191,6 +191,13 @@ public class OrderService implements OrderOperations {
         return OrderState.valueOf(get(id).status().name());
     }
 
+    @Override
+    public OrderPaymentDetails paymentDetails(UUID id) {
+        Order order = findForUpdate(id);
+        return new OrderPaymentDetails(order.id(), order.totalAmount(), order.currency(),
+                OrderState.valueOf(order.status().name()));
+    }
+
     private OrderSummary summary(Order order) {
         return new OrderSummary(order.id(), order.totalAmount(), order.currency());
     }
