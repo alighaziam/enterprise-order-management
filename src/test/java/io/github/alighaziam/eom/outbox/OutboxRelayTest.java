@@ -40,7 +40,7 @@ class OutboxRelayTest {
     void marksEventPublishedAfterSuccessfulDispatch() {
         OutboxClaimService claimService = mock(OutboxClaimService.class);
         OutboxRepository repository = mock(OutboxRepository.class);
-        ApplicationEventPublisher publisher = mock(ApplicationEventPublisher.class);
+        OutboxEventPublisher publisher = mock(OutboxEventPublisher.class);
         Instant created = Instant.now();
         OutboxEntity event = new OutboxEntity(UUID.randomUUID(), "OrderPlaced", 1, created,
                 "Order", "order-1", 1, "correlation-1", null, "{}", created);
