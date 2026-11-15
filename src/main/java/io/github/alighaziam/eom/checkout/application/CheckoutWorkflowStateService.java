@@ -71,6 +71,6 @@ public class CheckoutWorkflowStateService {
     }
 
     private CheckoutWorkflowEntity find(UUID id) {
-        return workflows.findById(id).orElseThrow(() -> new CheckoutNotFoundException(id));
+        return workflows.findByIdForUpdate(id).orElseThrow(() -> new CheckoutNotFoundException(id));
     }
 }
