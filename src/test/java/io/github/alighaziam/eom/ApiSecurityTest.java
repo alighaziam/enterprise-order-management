@@ -53,6 +53,15 @@ class ApiSecurityTest {
     }
 
     @Test
+    void bearerApiDoesNotCreateHttpSessions() {
+        var cookies = http.get().uri("/api/v1/customers").exchange((request, response) -> {
+            assertEquals(401, response.getStatusCode().value());
+            return response.getHeaders().getOrEmpty(HttpHeaders.SET_COOKIE);
+        });
+        assertTrue(cookies.stream().noneMatch(cookie -> cookie.startsWith("JSESSIONID=")));
+    }
+
+    @Test
     void rejectsValidTokenWithoutRequiredScope() {
         RestClientResponseException response = assertThrows(RestClientResponseException.class,
                 () -> http.get().uri("/api/v1/customers")
