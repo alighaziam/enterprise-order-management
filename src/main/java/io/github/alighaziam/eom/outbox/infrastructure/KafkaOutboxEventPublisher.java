@@ -1,7 +1,5 @@
 package io.github.alighaziam.eom.outbox.infrastructure;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.alighaziam.eom.outbox.IntegrationEvent;
 import io.github.alighaziam.eom.outbox.OutboxEventPublisher;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,17 +16,14 @@ import java.util.concurrent.TimeoutException;
 public class KafkaOutboxEventPublisher implements OutboxEventPublisher {
 
     private final KafkaTemplate<Object, Object> kafka;
-    private final ObjectMapper objectMapper;
     private final String topic;
     private final long timeoutMillis;
 
     public KafkaOutboxEventPublisher(
             KafkaTemplate<Object, Object> kafka,
-            ObjectMapper objectMapper,
             @Value("${app.outbox.kafka.topic:eom.outbox.events}") String topic,
             @Value("${app.outbox.kafka.publish-timeout-ms:10000}") long timeoutMillis) {
         this.kafka = kafka;
-        this.objectMapper = objectMapper;
         this.topic = topic;
         this.timeoutMillis = Math.max(1, timeoutMillis);
     }
@@ -36,16 +31,56 @@ public class KafkaOutboxEventPublisher implements OutboxEventPublisher {
     @Override
     public void publish(IntegrationEvent event) {
         String key = event.aggregateType() + ":" + event.aggregateId();
+        String json = toJson(event);
         try {
-            String json = objectMapper.writeValueAsString(event);
             kafka.send(topic, key, json).get(timeoutMillis, TimeUnit.MILLISECONDS);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Outbox event could not be serialized.", exception);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while waiting for Kafka acknowledgement.", exception);
         } catch (ExecutionException | TimeoutException exception) {
             throw new IllegalStateException("Kafka did not acknowledge the outbox event.", exception);
         }
+    }
+
+    private static String toJson(IntegrationEvent event) {
+        return "{"
+                + "\"eventId\":" + quote(event.eventId().toString()) + ","
+                + "\"eventType\":" + quote(event.eventType()) + ","
+                + "\"schemaVersion\":" + event.schemaVersion() + ","
+                + "\"occurredAt\":" + quote(event.occurredAt().toString()) + ","
+                + "\"aggregateType\":" + quote(event.aggregateType()) + ","
+                + "\"aggregateId\":" + quote(event.aggregateId()) + ","
+                + "\"aggregateVersion\":" + event.aggregateVersion() + ","
+                + "\"correlationId\":" + quote(event.correlationId()) + ","
+                + "\"causationId\":" + quote(event.causationId()) + ","
+                + "\"payload\":" + quote(event.payload())
+                + "}";
+    }
+
+    private static String quote(String value) {
+        if (value == null) {
+            return "null";
+        }
+        StringBuilder escaped = new StringBuilder(value.length() + 2).append('"');
+        for (int i = 0; i < value.length(); i++) {
+            char character = value.charAt(i);
+            switch (character) {
+                case '"' -> escaped.append("\\\"");
+                case '\\' -> escaped.append("\\\\");
+                case '\b' -> escaped.append("\\b");
+                case '\f' -> escaped.append("\\f");
+                case '\n' -> escaped.append("\\n");
+                case '\r' -> escaped.append("\\r");
+                case '\t' -> escaped.append("\\t");
+                default -> {
+                    if (character < 0x20) {
+                        escaped.append(String.format("\\u%04x", (int) character));
+                    } else {
+                        escaped.append(character);
+                    }
+                }
+            }
+        }
+        return escaped.append('"').toString();
     }
 }
