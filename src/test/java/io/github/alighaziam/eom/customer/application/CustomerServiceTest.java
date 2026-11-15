@@ -23,6 +23,7 @@ class CustomerServiceTest {
   private final Map<UUID,Customer> customers=new HashMap<>();
   public Customer save(Customer c){customers.put(c.id(),c);return c;}
   public Optional<Customer> findById(UUID id){return Optional.ofNullable(customers.get(id));}
+  public Optional<Customer> findByIdForUpdate(UUID id){return findById(id);}
   public java.util.List<Customer> findRecent(){return customers.values().stream().sorted(java.util.Comparator.comparing(Customer::createdAt).reversed()).limit(40).toList();}
   public boolean existsByEmail(String email){return customers.values().stream().anyMatch(c->c.email().equals(email));}
   public boolean emailUsedByOther(String email, UUID id){return customers.values().stream().anyMatch(c->c.email().equals(email)&&!c.id().equals(id));}
