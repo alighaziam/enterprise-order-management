@@ -1,5 +1,5 @@
 package io.github.alighaziam.eom.shipping.api;
-import io.github.alighaziam.eom.shipping.*; import io.github.alighaziam.eom.shipping.application.ShipmentNotFoundException; import io.github.alighaziam.eom.shipping.application.ShippingService; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import org.springframework.data.domain.Page; import org.springframework.http.HttpStatus; import org.springframework.http.ProblemDetail; import org.springframework.web.bind.annotation.*; import java.util.List; import java.util.UUID;
+import io.github.alighaziam.eom.shipping.*; import io.github.alighaziam.eom.shipping.application.ShipmentNotFoundException; import io.github.alighaziam.eom.shipping.application.ShippingService; import org.springframework.dao.DataIntegrityViolationException; import jakarta.validation.Valid; import jakarta.validation.constraints.*; import org.springframework.data.domain.Page; import org.springframework.http.HttpStatus; import org.springframework.http.ProblemDetail; import org.springframework.web.bind.annotation.*; import java.util.List; import java.util.UUID;
 @RestController @RequestMapping("/api/v1/shipments") public class ShippingController {
  private final ShippingService service;public ShippingController(ShippingService s){service=s;}
  @GetMapping public Page<Shipment> list(@RequestParam(defaultValue="0") int page,@RequestParam(defaultValue="8") int size,@RequestParam(required=false) String q,@RequestParam(required=false) String status){return service.search(q,status,page,size);}
@@ -12,6 +12,8 @@ import io.github.alighaziam.eom.shipping.*; import io.github.alighaziam.eom.ship
  ProblemDetail conflict(IllegalStateException e){return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,e.getMessage());}
  @ExceptionHandler(IllegalArgumentException.class) @ResponseStatus(HttpStatus.BAD_REQUEST)
  ProblemDetail badRequest(IllegalArgumentException e){return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,e.getMessage());}
+ @ExceptionHandler(DataIntegrityViolationException.class) @ResponseStatus(HttpStatus.CONFLICT)
+ ProblemDetail integrity(DataIntegrityViolationException e){return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,"Shipment conflicts with existing order data.");}
  public record CreateRequest(@NotNull UUID orderId,@NotBlank @Size(max=180) String recipientName,@NotBlank @Size(max=240) String addressLine1,@Size(max=240) String addressLine2,@NotBlank @Size(max=120) String city,@Size(max=40) String postalCode,@NotBlank @Pattern(regexp="[A-Z]{2}") String countryCode,@Size(max=40) String phone){}
  public record StatusRequest(@NotNull ShipmentStatus status){}
 }
