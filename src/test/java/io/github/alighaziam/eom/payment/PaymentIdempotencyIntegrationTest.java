@@ -43,7 +43,7 @@ class PaymentIdempotencyIntegrationTest {
             assertEquals(firstResult.id(), secondResult.id());
             assertEquals(PaymentStatus.AUTHORIZED, firstResult.status());
             assertEquals(PaymentStatus.AUTHORIZED, secondResult.status());
-            assertEquals(firstResult.id(), repository.findByIdempotencyKey(key).orElseThrow().getId());
+            assertEquals(firstResult.id(), repository.findByIdempotencyKey(key).orElseThrow().toDomain().id());
         }
     }
 
