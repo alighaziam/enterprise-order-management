@@ -1,5 +1,6 @@
 package io.github.alighaziam.eom.payment.application;
 import io.github.alighaziam.eom.order.OrderOperations; import io.github.alighaziam.eom.order.OrderState; import io.github.alighaziam.eom.outbox.OutboxOperations; import io.github.alighaziam.eom.payment.*; import io.github.alighaziam.eom.payment.infrastructure.*; import org.springframework.data.domain.Page;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional; import java.math.BigDecimal; import java.time.Instant; import java.util.List; import java.util.UUID;
 @Service public class PaymentService implements PaymentOperations {
@@ -19,9 +20,22 @@ import org.springframework.data.domain.Sort; import org.springframework.stereoty
   if(order.totalAmount().compareTo(amount)!=0 || !order.currency().equals(currency))
    throw new IllegalArgumentException("Payment amount and currency must match the order total.");
 
+  var replayAfterOrderLock=repository.findByIdempotencyKey(key);
+  if(replayAfterOrderLock.isPresent())
+   return validateReplay(replayAfterOrderLock.get(),orderId,amount,currency);
+
+  if(repository.existsByOrderIdAndStatusIn(orderId,List.of(PaymentStatus.REQUESTED,
+    PaymentStatus.AUTHORIZED,PaymentStatus.CAPTURED,PaymentStatus.REFUND_PENDING)))
+   throw new IllegalStateException("An active payment already exists for this order.");
+
   UUID id=UUID.randomUUID();
   Instant now=Instant.now();
-  int inserted=repository.insertIfAbsent(id,orderId,amount,currency,key,now);
+  int inserted;
+  try {
+   inserted=repository.insertIfAbsent(id,orderId,amount,currency,key,now);
+  } catch (DataIntegrityViolationException activePaymentConflict) {
+   throw new IllegalStateException("An active payment already exists for this order.",activePaymentConflict);
+  }
   if(inserted==0){
    var existing=repository.findByIdempotencyKey(key)
     .orElseThrow(()->new IllegalStateException("Payment idempotency claim could not be resolved."));
