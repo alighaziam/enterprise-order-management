@@ -1,9 +1,11 @@
 package io.github.alighaziam.eom.checkout.infrastructure;
 
 import io.github.alighaziam.eom.checkout.CheckoutStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -16,6 +18,10 @@ import java.util.UUID;
 public interface CheckoutWorkflowRepository extends JpaRepository<CheckoutWorkflowEntity, UUID> {
 
     Optional<CheckoutWorkflowEntity> findByIdempotencyKey(String key);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select w from CheckoutWorkflowEntity w where w.id = :id")
+    Optional<CheckoutWorkflowEntity> findByIdForUpdate(@Param("id") UUID id);
 
     @Modifying
     @Query(value = """
@@ -43,6 +49,7 @@ public interface CheckoutWorkflowRepository extends JpaRepository<CheckoutWorkfl
 
     List<CheckoutWorkflowEntity> findByFulfillmentLockedByOrderByNextAttemptAtAsc(String workerId);
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     Optional<CheckoutWorkflowEntity> findByIdAndFulfillmentLockedByAndFulfillmentLeaseUntilAfter(
             UUID id, String workerId, Instant now);
 
