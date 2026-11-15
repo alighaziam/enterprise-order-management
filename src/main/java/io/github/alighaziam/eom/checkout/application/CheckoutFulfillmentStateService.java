@@ -35,7 +35,7 @@ public class CheckoutFulfillmentStateService {
                 "CheckoutCompleted",
                 "CheckoutWorkflow",
                 workflow.getId().toString(),
-                3,
+                workflow.getEventVersion(),
                 workflow.getId().toString(),
                 null,
                 "{\"shipmentId\":\"" + shipmentId + "\"}");
@@ -53,6 +53,14 @@ public class CheckoutFulfillmentStateService {
 
         workflow.scheduleFulfillmentRetry(error, now);
         workflows.saveAndFlush(workflow);
+        outbox.append(
+                "CheckoutFulfillmentPending",
+                "CheckoutWorkflow",
+                workflow.getId().toString(),
+                workflow.getEventVersion(),
+                workflow.getId().toString(),
+                null,
+                "{\"orderId\":\"" + workflow.getOrderId() + "\"}");
         return true;
     }
 }
