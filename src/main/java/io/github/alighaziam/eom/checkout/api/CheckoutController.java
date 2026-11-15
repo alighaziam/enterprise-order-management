@@ -13,5 +13,5 @@ import io.github.alighaziam.eom.checkout.*;import io.github.alighaziam.eom.check
  @ExceptionHandler(IllegalArgumentException.class) @ResponseStatus(HttpStatus.BAD_REQUEST)
  ProblemDetail badRequest(IllegalArgumentException e){return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,e.getMessage());}
  public record Line(@NotNull UUID productId,@Min(1)int quantity){}
- public record Request(@NotNull UUID customerId,@NotEmpty List<@Valid Line> lines,@NotBlank @Size(max=180)String recipientName,@NotBlank @Size(max=240)String addressLine1,@Size(max=240)String addressLine2,@NotBlank @Size(max=120)String city,@Size(max=40)String postalCode,@NotBlank @Pattern(regexp="[A-Z]{2}")String countryCode,@Size(max=40)String phone,@NotBlank @Size(max=120)String idempotencyKey){}
+ public record Request(@NotNull UUID customerId,@NotEmpty List<@Valid Line> lines,@NotBlank @Size(max=180)String recipientName,@NotBlank @Size(max=240)String addressLine1,@Size(max=240)String addressLine2,@NotBlank @Size(max=120)String city,@Size(max=40)String postalCode,@NotBlank @Pattern(regexp="[A-Za-z]{2}")String countryCode,@Size(max=40)String phone,@NotBlank @Size(max=120)String idempotencyKey){}
 }
