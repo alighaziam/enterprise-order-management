@@ -6,10 +6,31 @@ import org.springframework.data.domain.Sort; import org.springframework.stereoty
  private final PaymentRepository repository; private final SandboxPaymentGateway gateway; private final OutboxOperations outbox;
  public PaymentService(PaymentRepository r,SandboxPaymentGateway g,OutboxOperations o){repository=r;gateway=g;outbox=o;}
  @Transactional public PaymentIntent authorize(UUID orderId,BigDecimal amount,String currency,String key){
- if(orderId==null||amount==null||amount.signum()<=0||currency==null||!currency.matches("[A-Z]{3}")||key==null||key.isBlank()||key.length()>120)throw new IllegalArgumentException("Order, positive amount, ISO currency, and idempotency key are required.");
- var old=repository.findByIdempotencyKey(key);if(old.isPresent()){var p=old.get().toDomain();if(!p.orderId().equals(orderId)||p.amount().compareTo(amount)!=0||!p.currency().equals(currency))throw new IllegalStateException("Idempotency key reused with different payment details.");return p;}
- UUID id=UUID.randomUUID();Instant now=Instant.now();String ref=gateway.authorize(id,amount,currency);var saved=repository.save(new PaymentIntentEntity(id,orderId,amount,currency,key,ref,now));
- outbox.append("PaymentAuthorized","PaymentIntent",id.toString(),1,orderId.toString(),null,"{\"paymentId\":\""+id+"\"}");return saved.toDomain();
+  if(orderId==null||amount==null||amount.signum()<=0||currency==null||!currency.matches("[A-Z]{3}")||key==null||key.isBlank()||key.length()>120)
+   throw new IllegalArgumentException("Order, positive amount, ISO currency, and idempotency key are required.");
+
+  UUID id=UUID.randomUUID();
+  Instant now=Instant.now();
+  int inserted=repository.insertIfAbsent(id,orderId,amount,currency,key,now);
+  if(inserted==0){
+   var existing=repository.findByIdempotencyKey(key)
+    .orElseThrow(()->new IllegalStateException("Payment idempotency claim could not be resolved."));
+   var previous=existing.toDomain();
+   if(!previous.orderId().equals(orderId)||previous.amount().compareTo(amount)!=0||!previous.currency().equals(currency))
+    throw new IllegalStateException("Idempotency key reused with different payment details.");
+   if(previous.status()==PaymentStatus.REQUESTED)
+    throw new IllegalStateException("Payment authorization is already being processed.");
+   return previous;
+  }
+
+  var entity=repository.findById(id)
+   .orElseThrow(()->new IllegalStateException("Payment intent reservation was not persisted."));
+  String reference=gateway.authorize(id,amount,currency);
+  entity.authorized(reference,Instant.now());
+  var saved=repository.saveAndFlush(entity);
+  outbox.append("PaymentAuthorized","PaymentIntent",id.toString(),1,orderId.toString(),null,
+   "{\"paymentId\":\"" + id + "\"}");
+  return saved.toDomain();
  }
  @Transactional public PaymentIntent capture(UUID id){var e=find(id);var p=e.toDomain();if(p.status()==PaymentStatus.CAPTURED)return p;if(p.status()!=PaymentStatus.AUTHORIZED)throw new IllegalStateException("Only authorized payments can be captured.");gateway.capture(p.providerReference());e.status(PaymentStatus.CAPTURED,Instant.now());outbox.append("PaymentCaptured","PaymentIntent",id.toString(),2,p.orderId().toString(),null,"{\"paymentId\":\""+id+"\"}");return e.toDomain();}
  @Transactional public PaymentIntent voidAuthorization(UUID id){var e=find(id);var p=e.toDomain();if(p.status()==PaymentStatus.VOIDED)return p;if(p.status()!=PaymentStatus.AUTHORIZED)throw new IllegalStateException("Only authorized payments can be voided.");gateway.voidAuthorization(p.providerReference());e.status(PaymentStatus.VOIDED,Instant.now());outbox.append("PaymentVoided","PaymentIntent",id.toString(),3,p.orderId().toString(),null,"{\"paymentId\":\""+id+"\"}");return e.toDomain();}
