@@ -11,15 +11,15 @@ Each module owns its domain and persistence. Cross-module collaboration uses pub
 | customer | Customer profiles | Create/retrieve customers |
 | catalog | Product information and pricing | Product CRUD and active-product query |
 | inventory | Stock and reservations | Atomic stock reservation, release, confirmation |
-| order | Purchase lifecycle | Order snapshots and reserve/confirm/cancel |
-| payment | Payment lifecycle | Authorization, capture, void, refund; sandbox adapter |
-| shipping | Fulfillment lifecycle | Immutable destination snapshot, shipment status transitions |
+| order | Purchase lifecycle | Order snapshots, reserve/confirm/cancel, transactional lifecycle events |
+| payment | Payment lifecycle | Atomic idempotency-key claim, authorization, capture, void, refund; sandbox adapter |
+| shipping | Fulfillment lifecycle | Immutable destination snapshot, shipment status transitions, monotonic event versions |
 | outbox | Reliable event handoff | Transactional outbox, leased polling relay, retry backoff, dead-letter state, inbox deduplication |
 | checkout | Process orchestration | Persisted checkout workflow and compensation |
 
 ## Order and checkout consistency
 
-A normal order placement reserves inventory and writes order state in one PostgreSQL transaction. Confirming an order consumes all reservations; cancelling releases them. Repeated confirm/cancel operations are idempotent and order transitions are locked.
+A normal order placement reserves inventory and writes order state plus an `OrderPlaced` outbox event in one PostgreSQL transaction. Confirming an order consumes all reservations and publishes `OrderConfirmed`; cancelling releases them and publishes `OrderCancelled`. Manual stock adjustments lock the stock row so they cannot overwrite a concurrent reservation. Repeated confirm/cancel operations are idempotent and order transitions are locked.
 
 The checkout orchestration persists a workflow checkpoint and immutable delivery-address snapshot at each step. Each checkpoint update and its versioned outbox event are committed in the same short PostgreSQL transaction; payment and carrier calls remain outside those transactions. Workflow state writes use row-level locking so competing recovery workers cannot silently overwrite a newer checkpoint:
 
@@ -31,7 +31,7 @@ The checkout orchestration persists a workflow checkpoint and immutable delivery
 
 If authorization/capture fails, the workflow voids an authorization when possible and releases the reservation. If order confirmation fails after capture, it attempts a refund and reservation release. If shipment creation fails after payment and stock commit, the workflow remains FULFILLMENT_PENDING; it does not silently undo completed financial/inventory actions. Failed compensations are recorded as COMPENSATION_REQUIRED for operator reconciliation. Shipment-creation failures retain the address snapshot and are retried by a scheduled worker with capped exponential delay; shipment creation is idempotent by order ID.
 
-The initial payment adapter is deterministic and sandbox-only. It does not connect to a bank, PSP, card network, or real money. It does not collect or store card PAN/CVV. The shipment carrier reference is also a local sandbox placeholder; no carrier API is called.
+Payment idempotency keys are claimed with an atomic insert-on-conflict operation before authorization, so concurrent requests with the same key resolve to one payment intent. The initial payment adapter is deterministic and sandbox-only. It does not connect to a bank, PSP, card network, or real money. It does not collect or store card PAN/CVV. The shipment carrier reference is also a local sandbox placeholder; no carrier API is called.
 
 ## Transactional outbox and inbox
 
@@ -131,7 +131,7 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Customer and Catalog modules with persistence and tests
 - [x] Inventory reservation lifecycle and tests
 - [x] Order lifecycle, snapshots, orchestration, and integration tests
-- [x] Payment module with idempotent sandbox authorization, capture, void, refund
+- [x] Payment module with concurrency-safe idempotent sandbox authorization, capture, void, refund
 - [x] Shipping module with address snapshots and guarded state transitions
 - [x] Transactional outbox, leased SKIP LOCKED batch claiming, exponential retry backoff, dead-letter state
 - [x] Inbox deduplication helper and at-least-once delivery documentation
@@ -143,6 +143,7 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [ ] External broker adapter
 - [ ] Real payment provider and carrier integrations (require separate credentials, security review, and approval)
 - [x] Scheduled fulfillment recovery for FULFILLMENT_PENDING using persisted address snapshots and exponential retry delay
+- [x] Versioned Order, Checkout, and Shipment lifecycle events written transactionally to the outbox
 - [x] Operator reconciliation for COMPENSATION_REQUIRED when the order is still reserved; a confirmed captured sale is left intact
 
 ## Security and WSO2 integration
