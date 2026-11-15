@@ -60,6 +60,9 @@ public interface OutboxRepository extends JpaRepository<OutboxEntity, UUID> {
 
     List<OutboxEntity> findTop40ByOrderByCreatedAtDesc();
 
+    List<OutboxEntity> findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
+            String aggregateType, String aggregateId);
+
     long countByDeadLetteredAtIsNotNull();
 
     @Query("""
