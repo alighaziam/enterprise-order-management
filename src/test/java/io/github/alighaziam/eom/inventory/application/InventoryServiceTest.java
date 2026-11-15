@@ -1,5 +1,6 @@
 package io.github.alighaziam.eom.inventory.application;
 
+import io.github.alighaziam.eom.catalog.CatalogProduct;
 import io.github.alighaziam.eom.inventory.domain.Reservation;
 import io.github.alighaziam.eom.inventory.domain.ReservationStatus;
 import io.github.alighaziam.eom.inventory.domain.StockItem;
@@ -17,7 +18,7 @@ class InventoryServiceTest {
     @Test
     void reservesAndReleasesStockExactlyOnce() {
         InMemoryStore store = new InMemoryStore();
-        InventoryService service = new InventoryService(store);
+        InventoryService service = service(store);
         UUID productId = UUID.randomUUID();
         service.initializeStock(productId, 10);
 
@@ -37,7 +38,7 @@ class InventoryServiceTest {
     @Test
     void confirmsReservationAndConsumesOnHandStock() {
         InMemoryStore store = new InMemoryStore();
-        InventoryService service = new InventoryService(store);
+        InventoryService service = service(store);
         UUID productId = UUID.randomUUID();
         service.initializeStock(productId, 10);
 
@@ -52,7 +53,7 @@ class InventoryServiceTest {
 
     @Test
     void preventsConfirmingReleasedReservation() {
-        InventoryService service = new InventoryService(new InMemoryStore());
+        InventoryService service = service(new InMemoryStore());
         UUID productId = UUID.randomUUID();
         service.initializeStock(productId, 5);
         Reservation reservation = service.reserve(productId, 2);
@@ -63,7 +64,7 @@ class InventoryServiceTest {
 
     @Test
     void stockAdjustmentCannotReduceOnHandBelowActiveReservations() {
-        InventoryService service = new InventoryService(new InMemoryStore());
+        InventoryService service = service(new InMemoryStore());
         UUID productId = UUID.randomUUID();
         service.initializeStock(productId, 10);
         service.reserve(productId, 4);
@@ -75,12 +76,17 @@ class InventoryServiceTest {
 
     @Test
     void rejectsInsufficientAndNonPositiveReservations() {
-        InventoryService service = new InventoryService(new InMemoryStore());
+        InventoryService service = service(new InMemoryStore());
         UUID productId = UUID.randomUUID();
         service.initializeStock(productId, 2);
 
         assertThrows(IllegalArgumentException.class, () -> service.reserve(productId, 0));
         assertThrows(InsufficientStockException.class, () -> service.reserve(productId, 3));
+    }
+
+    private static InventoryService service(InMemoryStore store) {
+        return new InventoryService(store, id -> Optional.of(new CatalogProduct(
+                id, "TEST-" + id, "Test product", java.math.BigDecimal.ONE, "EUR", true)));
     }
 
     private static class InMemoryStore implements InventoryStore {
