@@ -23,11 +23,11 @@ public class ActivePaymentOrderCancellationGuard implements OrderCancellationGua
 
     @Override
     public void assertCanCancel(UUID orderId) {
-        if (payments.existsByOrderIdAndStatusIn(orderId, List.of(
+        if (payments.findActiveByOrderIdForUpdate(orderId, List.of(
                 PaymentStatus.REQUESTED,
                 PaymentStatus.AUTHORIZED,
                 PaymentStatus.CAPTURED,
-                PaymentStatus.REFUND_PENDING))) {
+                PaymentStatus.REFUND_PENDING)).isPresent()) {
             throw new IllegalStateException(
                     "An order with an active payment cannot be cancelled. Void or refund the payment first.");
         }
