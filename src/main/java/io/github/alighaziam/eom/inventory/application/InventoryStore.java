@@ -13,6 +13,7 @@ import java.util.UUID;
 public interface InventoryStore {
     StockItem save(StockItem item);
     Optional<StockItem> findByProductId(UUID productId);
+    Optional<StockItem> findByProductIdForUpdate(UUID productId);
     List<StockItem> findAllStock();
     Page<StockItem> search(String availability, Pageable pageable);
     boolean reserve(UUID productId, int quantity);
