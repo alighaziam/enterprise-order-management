@@ -9,6 +9,7 @@ import java.util.UUID;
 public interface CustomerStore {
  Customer save(Customer customer);
  Optional<Customer> findById(UUID id);
+ Optional<Customer> findByIdForUpdate(UUID id);
  List<Customer> findRecent();
  boolean existsByEmail(String normalizedEmail);
  boolean emailUsedByOther(String normalizedEmail, UUID id);
