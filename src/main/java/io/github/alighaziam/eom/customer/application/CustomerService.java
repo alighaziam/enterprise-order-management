@@ -27,7 +27,7 @@ public class CustomerService {
   }
  }
  public Customer update(UUID id, String fullName, String email) {
-  Customer current = required(id);
+  Customer current = requiredForUpdate(id);
   String normalizedEmail = normalize(email);
   if (customerStore.emailUsedByOther(normalizedEmail, id)) throw new CustomerAlreadyExistsException(normalizedEmail);
   try {
@@ -48,7 +48,7 @@ public class CustomerService {
  public Page<Customer> search(String q, Boolean active, int page, int size) {
   return customerStore.search(blank(q), active, PageRequest.of(Math.max(page, 0), clamp(size), Sort.by(Sort.Direction.DESC, "createdAt")));
  }
- private Customer required(UUID id) { return customerStore.findById(id).orElseThrow(() -> new CustomerNotFoundException(id)); }
+ private Customer requiredForUpdate(UUID id) { return customerStore.findByIdForUpdate(id).orElseThrow(() -> new CustomerNotFoundException(id)); }
  private static String normalize(String email) { return email.trim().toLowerCase(Locale.ROOT); }
  private static String blank(String value) { return value == null || value.isBlank() ? null : value.trim(); }
  private static int clamp(int size) { return Math.min(Math.max(size, 1), 100); }
