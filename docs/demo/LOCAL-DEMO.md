@@ -10,9 +10,17 @@ This runbook is a repeatable 10–15 minute walkthrough for reviewers and interv
 
 ## 2. Start the application
 
-From the repository root:
+For an isolated local walkthrough without a running WSO2 identity provider, prepare the environment first:
 
 ```bash
+cp .env.example .env
+```
+
+Edit `.env`: set a local database password and set `APP_SECURITY_ENABLED=false`. Compose binds the application and PostgreSQL ports to loopback only. This setting is strictly for a local demo; never disable API security in a shared, staging, or production environment. To demo JWT security instead, keep it enabled, configure a reachable WSO2 issuer/JWKS endpoint, and send a valid bearer token with each API request.
+
+From the repository root:
+
+```powershell
 powershell -File docker/prepare.ps1
 docker compose up -d --build
 ```
