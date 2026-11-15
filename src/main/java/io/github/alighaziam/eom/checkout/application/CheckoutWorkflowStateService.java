@@ -33,7 +33,7 @@ public class CheckoutWorkflowStateService {
         }
         CheckoutWorkflowEntity workflow = find(workflowId);
         workflow.payment(paymentId, status, now);
-        return persistAndPublish(workflow, "Checkout" + status.name(), now,
+        return persistAndPublish(workflow, "Checkout" + status.name(),
                 "{\"paymentId\":\"" + paymentId + "\"}");
     }
 
@@ -42,7 +42,7 @@ public class CheckoutWorkflowStateService {
                                                String error, Instant now) {
         CheckoutWorkflowEntity workflow = find(workflowId);
         workflow.status(status, error, now);
-        return persistAndPublish(workflow, "Checkout" + status.name(), now,
+        return persistAndPublish(workflow, "Checkout" + status.name(),
                 "{\"orderId\":\"" + workflow.getOrderId() + "\",\"status\":\"" + status.name() + "\"}");
     }
 
@@ -50,7 +50,7 @@ public class CheckoutWorkflowStateService {
     public CheckoutWorkflowEntity scheduleFulfillmentRetry(UUID workflowId, String error, Instant now) {
         CheckoutWorkflowEntity workflow = find(workflowId);
         workflow.scheduleFulfillmentRetry(error, now);
-        return persistAndPublish(workflow, "CheckoutFulfillmentPending", now,
+        return persistAndPublish(workflow, "CheckoutFulfillmentPending",
                 "{\"orderId\":\"" + workflow.getOrderId() + "\"}");
     }
 
@@ -58,12 +58,12 @@ public class CheckoutWorkflowStateService {
     public CheckoutWorkflowEntity recordShipment(UUID workflowId, UUID shipmentId, Instant now) {
         CheckoutWorkflowEntity workflow = find(workflowId);
         workflow.shipment(shipmentId, now);
-        return persistAndPublish(workflow, "CheckoutCompleted", now,
+        return persistAndPublish(workflow, "CheckoutCompleted",
                 "{\"shipmentId\":\"" + shipmentId + "\"}");
     }
 
     private CheckoutWorkflowEntity persistAndPublish(CheckoutWorkflowEntity workflow,
-                                                       String eventType, Instant now, String payload) {
+                                                       String eventType, String payload) {
         workflows.saveAndFlush(workflow);
         outbox.append(eventType, "CheckoutWorkflow", workflow.getId().toString(),
                 workflow.getEventVersion(), workflow.getId().toString(), null, payload);
