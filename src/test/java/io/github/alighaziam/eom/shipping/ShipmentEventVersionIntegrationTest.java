@@ -8,8 +8,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 class ShipmentEventVersionIntegrationTest {
@@ -22,9 +24,15 @@ class ShipmentEventVersionIntegrationTest {
 
     @Test
     void shipmentEventsUseStrictlyIncreasingAggregateVersions() {
-        var shipment = shipping.create(UUID.randomUUID(),
-                new DeliveryAddress("Recipient", "Main Street 1", null,
-                        "Berlin", "10115", "DE", "+491234567"));
+        UUID orderId = UUID.randomUUID();
+        DeliveryAddress destination = new DeliveryAddress("Recipient", "Main Street 1", null,
+                "Berlin", "10115", "DE", "+491234567");
+        var shipment = shipping.create(orderId, destination);
+
+        assertEquals(shipment.id(), shipping.create(orderId, destination).id());
+        assertThrows(IllegalStateException.class, () -> shipping.create(orderId,
+                new DeliveryAddress("Other Recipient", "Other Street 2", null,
+                        "Berlin", "10117", "DE", "+491234567")));
 
         shipping.updateStatus(shipment.id(), ShipmentStatus.LABEL_CREATED);
         shipping.updateStatus(shipment.id(), ShipmentStatus.READY_FOR_DISPATCH);
