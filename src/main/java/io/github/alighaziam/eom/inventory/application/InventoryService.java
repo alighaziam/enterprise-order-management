@@ -1,5 +1,6 @@
 package io.github.alighaziam.eom.inventory.application;
 
+import io.github.alighaziam.eom.catalog.CatalogOperations;
 import io.github.alighaziam.eom.inventory.domain.Reservation;
 import io.github.alighaziam.eom.inventory.domain.ReservationStatus;
 import io.github.alighaziam.eom.inventory.domain.StockItem;
@@ -18,14 +19,17 @@ import java.util.UUID;
 @Transactional
 public class InventoryService {
     private final InventoryStore store;
+    private final CatalogOperations catalog;
 
-    public InventoryService(InventoryStore store) {
+    public InventoryService(InventoryStore store, CatalogOperations catalog) {
         this.store = store;
+        this.catalog = catalog;
     }
 
     public StockItem initializeStock(UUID id, int quantity) {
         if (id == null) throw new IllegalArgumentException("Product id is required.");
         if (quantity < 0) throw new IllegalArgumentException("Initial stock cannot be negative.");
+        requireActiveProduct(id);
         if (store.findByProductId(id).isPresent()) {
             throw new IllegalStateException("Stock has already been initialized for product: " + id);
         }
@@ -38,7 +42,9 @@ public class InventoryService {
     }
 
     public Reservation reserve(UUID productId, int quantity) {
+        if (productId == null) throw new IllegalArgumentException("Product id is required.");
         if (quantity <= 0) throw new IllegalArgumentException("Reservation quantity must be positive.");
+        requireActiveProduct(productId);
         if (store.findByProductId(productId).isEmpty()) throw new StockItemNotFoundException(productId);
         if (!store.reserve(productId, quantity)) throw new InsufficientStockException(productId, quantity);
 
@@ -93,6 +99,12 @@ public class InventoryService {
     @Transactional(readOnly = true)
     public StockItem find(UUID id) {
         return store.findByProductId(id).orElseThrow(() -> new StockItemNotFoundException(id));
+    }
+
+    private void requireActiveProduct(UUID productId) {
+        if (catalog.findActiveProduct(productId).isEmpty()) {
+            throw new IllegalArgumentException("Product does not exist or is inactive: " + productId);
+        }
     }
 
     private Reservation findReservationForUpdate(UUID id) {
