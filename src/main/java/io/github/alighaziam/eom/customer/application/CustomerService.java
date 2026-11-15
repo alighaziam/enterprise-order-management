@@ -5,11 +5,13 @@ import io.github.alighaziam.eom.customer.domain.Customer;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Locale;
 import java.util.UUID;
 @Service @Transactional
 public class CustomerService {
@@ -18,13 +20,21 @@ public class CustomerService {
  public Customer create(String fullName, String email) {
   String normalizedEmail = normalize(email);
   if (customerStore.existsByEmail(normalizedEmail)) throw new CustomerAlreadyExistsException(normalizedEmail);
-  return customerStore.save(new Customer(UUID.randomUUID(), fullName.trim(), normalizedEmail, true, Instant.now()));
+  try {
+   return customerStore.save(new Customer(UUID.randomUUID(), fullName.trim(), normalizedEmail, true, Instant.now()));
+  } catch (DataIntegrityViolationException duplicate) {
+   throw new CustomerAlreadyExistsException(normalizedEmail);
+  }
  }
  public Customer update(UUID id, String fullName, String email) {
   Customer current = required(id);
   String normalizedEmail = normalize(email);
   if (customerStore.emailUsedByOther(normalizedEmail, id)) throw new CustomerAlreadyExistsException(normalizedEmail);
-  return customerStore.save(new Customer(current.id(), fullName.trim(), normalizedEmail, current.active(), current.createdAt()));
+  try {
+   return customerStore.save(new Customer(current.id(), fullName.trim(), normalizedEmail, current.active(), current.createdAt()));
+  } catch (DataIntegrityViolationException duplicate) {
+   throw new CustomerAlreadyExistsException(normalizedEmail);
+  }
  }
  public Customer setActive(UUID id, boolean active) {
   Customer current = required(id);
@@ -39,7 +49,7 @@ public class CustomerService {
   return customerStore.search(blank(q), active, PageRequest.of(Math.max(page, 0), clamp(size), Sort.by(Sort.Direction.DESC, "createdAt")));
  }
  private Customer required(UUID id) { return customerStore.findById(id).orElseThrow(() -> new CustomerNotFoundException(id)); }
- private static String normalize(String email) { return email.trim().toLowerCase(); }
+ private static String normalize(String email) { return email.trim().toLowerCase(Locale.ROOT); }
  private static String blank(String value) { return value == null || value.isBlank() ? null : value.trim(); }
  private static int clamp(int size) { return Math.min(Math.max(size, 1), 100); }
 }
