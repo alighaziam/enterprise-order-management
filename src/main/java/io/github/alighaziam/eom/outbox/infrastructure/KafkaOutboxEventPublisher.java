@@ -15,6 +15,8 @@ import java.util.concurrent.TimeoutException;
 @ConditionalOnProperty(name = "app.outbox.transport", havingValue = "kafka")
 public class KafkaOutboxEventPublisher implements OutboxEventPublisher {
 
+    private static final long MAX_PUBLISH_TIMEOUT_MILLIS = 10_000;
+
     private final KafkaTemplate<Object, Object> kafka;
     private final String topic;
     private final long timeoutMillis;
@@ -25,7 +27,7 @@ public class KafkaOutboxEventPublisher implements OutboxEventPublisher {
             @Value("${app.outbox.kafka.publish-timeout-ms:10000}") long timeoutMillis) {
         this.kafka = kafka;
         this.topic = topic;
-        this.timeoutMillis = Math.max(1, timeoutMillis);
+        this.timeoutMillis = Math.max(1, Math.min(MAX_PUBLISH_TIMEOUT_MILLIS, timeoutMillis));
     }
 
     @Override
