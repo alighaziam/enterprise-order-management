@@ -23,7 +23,7 @@ public class CapturedPaymentOrderConfirmationGuard implements OrderConfirmationG
 
     @Override
     public void assertCanConfirm(UUID orderId) {
-        if (!payments.existsByOrderIdAndStatusIn(orderId, List.of(PaymentStatus.CAPTURED))) {
+        if (payments.findActiveByOrderIdForUpdate(orderId, List.of(PaymentStatus.CAPTURED)).isEmpty()) {
             throw new IllegalStateException("An order can only be confirmed after its payment is captured.");
         }
     }
