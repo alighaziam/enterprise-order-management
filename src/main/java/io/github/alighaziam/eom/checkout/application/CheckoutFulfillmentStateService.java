@@ -3,7 +3,6 @@ package io.github.alighaziam.eom.checkout.application;
 import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowEntity;
 import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowRepository;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
-import io.github.alighaziam.eom.shipping.ShippingOperations.Shipment;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
