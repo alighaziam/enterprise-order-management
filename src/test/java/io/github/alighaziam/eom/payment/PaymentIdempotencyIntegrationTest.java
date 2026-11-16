@@ -139,9 +139,14 @@ class PaymentIdempotencyIntegrationTest {
         assertThrows(IllegalArgumentException.class, () ->
                 payments.authorize(orderId, new BigDecimal("1.00001"), "EUR",
                         "too-many-fractional-digits-" + UUID.randomUUID()));
-        assertThrows(IllegalArgumentException.class, () ->
-                payments.authorize(orderId, new BigDecimal("0.0001"), "EUR",
-                        "valid-precision-" + UUID.randomUUID()));
+
+        BigDecimal minimumSupportedAmount = new BigDecimal("0.0001");
+        OrderOperations.OrderSummary order = createReservedOrder(minimumSupportedAmount);
+        PaymentIntent payment = payments.authorize(order.id(), minimumSupportedAmount, order.currency(),
+                "valid-minimum-precision-" + UUID.randomUUID());
+
+        assertEquals(PaymentStatus.AUTHORIZED, payment.status());
+        assertEquals(0, payment.amount().compareTo(minimumSupportedAmount));
     }
 
     @Test
