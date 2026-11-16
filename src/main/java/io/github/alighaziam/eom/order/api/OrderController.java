@@ -27,7 +27,7 @@ public class OrderController {
  ProblemDetail notFound(OrderNotFoundException e){return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND,e.getMessage());}
  @ExceptionHandler({OrderConflictException.class,IllegalArgumentException.class,IllegalStateException.class}) @ResponseStatus(HttpStatus.CONFLICT)
  ProblemDetail conflict(RuntimeException e){return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,e.getMessage());}
- public record PlaceOrderRequest(@NotNull UUID customerId,@NotEmpty List<@NotNull @Valid OrderLineRequest> lines){}
+ public record PlaceOrderRequest(@NotNull UUID customerId,@NotEmpty @Size(max=100) List<@NotNull @Valid OrderLineRequest> lines){}
  public record OrderLineRequest(@NotNull UUID productId,@Min(1) int quantity){}
  public record OrderLineResponse(UUID lineId,UUID productId,String sku,String productName,BigDecimal unitPrice,String currency,int quantity,UUID reservationId,BigDecimal subtotal){
   static OrderLineResponse from(OrderLine l){return new OrderLineResponse(l.id(),l.productId(),l.sku(),l.productName(),l.unitPrice(),l.currency(),l.quantity(),l.reservationId(),l.subtotal());}
