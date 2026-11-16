@@ -51,6 +51,10 @@ For operational inspection of dead letters:
     WHERE dead_lettered_at IS NOT NULL
     ORDER BY dead_lettered_at DESC;
 
+## Payment provider integration
+
+The payment module uses a provider-neutral adapter contract. The deterministic sandbox is the only included implementation; see [Payment Gateway Integration](docs/architecture/PAYMENT-GATEWAY-INTEGRATION.md) before adding a PSP adapter. Setting `PAYMENT_PROVIDER` to an unsupported value intentionally prevents startup rather than silently falling back to sandbox.
+
 ## APIs
 
 | Method | Endpoint | Purpose |
