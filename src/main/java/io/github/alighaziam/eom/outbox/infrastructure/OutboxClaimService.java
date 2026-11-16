@@ -35,4 +35,39 @@ public class OutboxClaimService {
         repository.claimBatch(workerId, now, now.plusSeconds(LEASE_SECONDS), batchSize);
         return repository.findByLockedByOrderByCreatedAtAsc(workerId);
     }
+
+    @Transactional
+    public boolean markPublished(UUID eventId, String workerId, Instant now) {
+        OutboxEntity event = ownedLease(eventId, workerId, now);
+        if (event == null) {
+            return false;
+        }
+        event.published(now);
+        repository.saveAndFlush(event);
+        return true;
+    }
+
+    @Transactional
+    public boolean markFailed(UUID eventId, String workerId, String error, Instant now) {
+        OutboxEntity event = ownedLease(eventId, workerId, now);
+        if (event == null) {
+            return false;
+        }
+        event.failed(error, now);
+        repository.saveAndFlush(event);
+        return true;
+    }
+
+    private OutboxEntity ownedLease(UUID eventId, String workerId, Instant now) {
+        if (eventId == null || workerId == null || workerId.isBlank() || now == null) {
+            return null;
+        }
+        OutboxEntity event = repository.findByIdForUpdate(eventId).orElse(null);
+        if (event == null || !workerId.equals(event.getLockedBy())
+                || event.getLockedUntil() == null || !event.getLockedUntil().isAfter(now)
+                || event.getPublishedAt() != null || event.getDeadLetteredAt() != null) {
+            return null;
+        }
+        return event;
+    }
 }
