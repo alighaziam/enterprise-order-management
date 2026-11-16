@@ -32,7 +32,7 @@ class PaymentGatewayOperationClaimIntegrationTest {
         Instant now = Instant.now();
         PaymentIntentEntity payment = createPayment(now);
         UUID id = UUID.randomUUID();
-        repository.saveAndFlush(operation(id, payment.getId(), now));
+        repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
 
         try {
             var first = claims.claimPendingBatch(10, now);
