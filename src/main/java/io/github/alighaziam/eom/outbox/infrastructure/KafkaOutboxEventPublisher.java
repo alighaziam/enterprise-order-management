@@ -1,5 +1,7 @@
 package io.github.alighaziam.eom.outbox.infrastructure;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.alighaziam.eom.outbox.IntegrationEvent;
 import io.github.alighaziam.eom.outbox.OutboxEventPublisher;
 import org.springframework.beans.factory.annotation.Value;
@@ -7,6 +9,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -18,14 +22,17 @@ public class KafkaOutboxEventPublisher implements OutboxEventPublisher {
     private static final long MAX_PUBLISH_TIMEOUT_MILLIS = 10_000;
 
     private final KafkaTemplate<Object, Object> kafka;
+    private final ObjectMapper objectMapper;
     private final String topic;
     private final long timeoutMillis;
 
     public KafkaOutboxEventPublisher(
             KafkaTemplate<Object, Object> kafka,
+            ObjectMapper objectMapper,
             @Value("${app.outbox.kafka.topic:eom.outbox.events}") String topic,
             @Value("${app.outbox.kafka.publish-timeout-ms:10000}") long timeoutMillis) {
         this.kafka = kafka;
+        this.objectMapper = objectMapper;
         this.topic = topic;
         this.timeoutMillis = Math.max(1, Math.min(MAX_PUBLISH_TIMEOUT_MILLIS, timeoutMillis));
     }
@@ -44,45 +51,23 @@ public class KafkaOutboxEventPublisher implements OutboxEventPublisher {
         }
     }
 
-    private static String toJson(IntegrationEvent event) {
-        return "{"
-                + "\"eventId\":" + quote(event.eventId().toString()) + ","
-                + "\"eventType\":" + quote(event.eventType()) + ","
-                + "\"schemaVersion\":" + event.schemaVersion() + ","
-                + "\"occurredAt\":" + quote(event.occurredAt().toString()) + ","
-                + "\"aggregateType\":" + quote(event.aggregateType()) + ","
-                + "\"aggregateId\":" + quote(event.aggregateId()) + ","
-                + "\"aggregateVersion\":" + event.aggregateVersion() + ","
-                + "\"correlationId\":" + quote(event.correlationId()) + ","
-                + "\"causationId\":" + quote(event.causationId()) + ","
-                + "\"payload\":" + quote(event.payload())
-                + "}";
-    }
-
-    private static String quote(String value) {
-        if (value == null) {
-            return "null";
+    private String toJson(IntegrationEvent event) {
+        Map<String, Object> envelope = new LinkedHashMap<>();
+        envelope.put("eventId", event.eventId());
+        envelope.put("eventType", event.eventType());
+        envelope.put("schemaVersion", event.schemaVersion());
+        envelope.put("occurredAt", event.occurredAt().toString());
+        envelope.put("aggregateType", event.aggregateType());
+        envelope.put("aggregateId", event.aggregateId());
+        envelope.put("aggregateVersion", event.aggregateVersion());
+        envelope.put("correlationId", event.correlationId());
+        envelope.put("causationId", event.causationId());
+        // Keep payload as a JSON string for wire compatibility with existing consumers.
+        envelope.put("payload", event.payload());
+        try {
+            return objectMapper.writeValueAsString(envelope);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Could not serialize the outbox event envelope.", exception);
         }
-        StringBuilder escaped = new StringBuilder(value.length() + 2).append('"');
-        for (int i = 0; i < value.length(); i++) {
-            char character = value.charAt(i);
-            switch (character) {
-                case '"' -> escaped.append("\\\"");
-                case '\\' -> escaped.append("\\\\");
-                case '\b' -> escaped.append("\\b");
-                case '\f' -> escaped.append("\\f");
-                case '\n' -> escaped.append("\\n");
-                case '\r' -> escaped.append("\\r");
-                case '\t' -> escaped.append("\\t");
-                default -> {
-                    if (character < 0x20) {
-                        escaped.append(String.format("\\u%04x", (int) character));
-                    } else {
-                        escaped.append(character);
-                    }
-                }
-            }
-        }
-        return escaped.append('"').toString();
     }
 }
