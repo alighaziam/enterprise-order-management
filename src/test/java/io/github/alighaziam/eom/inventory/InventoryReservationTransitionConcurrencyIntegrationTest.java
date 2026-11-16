@@ -34,15 +34,18 @@ class InventoryReservationTransitionConcurrencyIntegrationTest {
     @Test
     void concurrentReleaseAndConfirmCanApplyOnlyOneTerminalTransition() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
-        String product = post("/api/v1/products",
-                "{\\"sku\\":\\"TRANSITION-" + suffix + "\\",\\"name\\":\\"Reservation Transition Test\\","
-                        + "\\"unitPrice\\":5.00,\\"currency\\":\\"EUR\\"}");
+        String product = post("/api/v1/products", """
+                {"sku":"TRANSITION-%s","name":"Reservation Transition Test",
+                 "unitPrice":5.00,"currency":"EUR"}
+                """.formatted(suffix));
         String productId = JsonPath.read(product, "$.id");
 
-        post("/api/v1/inventory/stock",
-                "{\\"productId\\":\\"" + productId + "\\",\\"quantity\\":5}");
-        String reservation = post("/api/v1/inventory/reservations",
-                "{\\"productId\\":\\"" + productId + "\\",\\"quantity\\":2}");
+        post("/api/v1/inventory/stock", """
+                {"productId":"%s","quantity":5}
+                """.formatted(productId));
+        String reservation = post("/api/v1/inventory/reservations", """
+                {"productId":"%s","quantity":2}
+                """.formatted(productId));
         String reservationId = JsonPath.read(reservation, "$.reservationId");
 
         CountDownLatch start = new CountDownLatch(1);
@@ -66,12 +69,11 @@ class InventoryReservationTransitionConcurrencyIntegrationTest {
             assertEquals(409, isSuccess(releaseStatus) ? confirmStatus : releaseStatus,
                     "The losing transition must be rejected as a conflict");
 
-            String persistedReservation = http.get()
-                    .uri("/api/v1/inventory/" + productId)
+            String stock = http.get().uri("/api/v1/inventory/" + productId)
                     .retrieve().body(String.class);
-            int onHand = ((Number) JsonPath.read(persistedReservation, "$.onHandQuantity")).intValue();
-            int reserved = ((Number) JsonPath.read(persistedReservation, "$.reservedQuantity")).intValue();
-            int available = ((Number) JsonPath.read(persistedReservation, "$.availableQuantity")).intValue();
+            int onHand = ((Number) JsonPath.read(stock, "$.onHandQuantity")).intValue();
+            int reserved = ((Number) JsonPath.read(stock, "$.reservedQuantity")).intValue();
+            int available = ((Number) JsonPath.read(stock, "$.availableQuantity")).intValue();
 
             if (isSuccess(releaseStatus)) {
                 assertEquals(5, onHand, "Release must not consume on-hand stock");
