@@ -14,7 +14,7 @@ USER appuser
 
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=12 \
-    CMD bash -c 'echo > /dev/tcp/127.0.0.1/8080' || exit 1
+    CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /actuator/health HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n" >&3 && IFS= read -r status <&3 && [[ "$status" == *" 200 "* ]]' || exit 1
 
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
