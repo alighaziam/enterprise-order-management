@@ -102,9 +102,13 @@ class CheckoutWorkflowIntegrationTest {
                  WHERE id = ?
                 """, Timestamp.from(Instant.now().minusSeconds(180)), result.workflowId());
         jdbc.update("DELETE FROM shipping.shipments WHERE id = ?", result.shipmentId());
+        // Recreate the durable order state at the crash boundary: payment captured, order not yet confirmed.
+        jdbc.update("UPDATE ordering.orders SET status = 'RESERVED' WHERE id = ?", result.orderId());
 
         sagaRecoveryWorker.recoverStaleSagaStages();
 
+        assertEquals("CONFIRMED", jdbc.queryForObject(
+                "SELECT status FROM ordering.orders WHERE id = ?", String.class, result.orderId()));
         var recovered = checkout.get(result.workflowId());
         assertEquals(CheckoutStatus.COMPLETED, recovered.status());
         assertNotNull(recovered.shipmentId());
