@@ -1,6 +1,7 @@
 package io.github.alighaziam.eom.checkout.application;
 
 import io.github.alighaziam.eom.checkout.CheckoutStatus;
+import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowRepository;
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.payment.PaymentIntent;
 import io.github.alighaziam.eom.payment.PaymentOperations;
@@ -20,6 +21,7 @@ public class CheckoutSagaRecoveryWorker {
     private final CheckoutSagaClaimService claims;
     private final CheckoutWorkflowStateService states;
     private final CheckoutFulfillmentStateService fulfillmentStates;
+    private final CheckoutWorkflowRepository workflows;
     private final OrderOperations orders;
     private final PaymentOperations payments;
     private final ShippingOperations shipping;
@@ -27,12 +29,14 @@ public class CheckoutSagaRecoveryWorker {
     public CheckoutSagaRecoveryWorker(CheckoutSagaClaimService claims,
                                      CheckoutWorkflowStateService states,
                                      CheckoutFulfillmentStateService fulfillmentStates,
+                                     CheckoutWorkflowRepository workflows,
                                      OrderOperations orders,
                                      PaymentOperations payments,
                                      ShippingOperations shipping) {
         this.claims = claims;
         this.states = states;
         this.fulfillmentStates = fulfillmentStates;
+        this.workflows = workflows;
         this.orders = orders;
         this.payments = payments;
         this.shipping = shipping;
@@ -74,45 +78,14 @@ public class CheckoutSagaRecoveryWorker {
                     CheckoutStatus.PAYMENT_CAPTURED, Instant.now())) return;
         }
 
-        if (claim.status() == CheckoutStatus.ORDER_RESERVED
-                || claim.status() == CheckoutStatus.PAYMENT_AUTHORIZED
-                || claim.status() == CheckoutStatus.PAYMENT_CAPTURED) {
-            orders.confirmForCheckout(claim.orderId());
-            if (!states.recordSagaStatus(claim.workflowId(), claim.workerId(),
-                    CheckoutStatus.ORDER_CONFIRMED, Instant.now())) return;
-        }
+        orders.confirmForCheckout(claim.orderId());
+        if (!states.recordSagaStatus(claim.workflowId(), claim.workerId(),
+                CheckoutStatus.ORDER_CONFIRMED, Instant.now())) return;
 
-        var address = orders.orderDetails(claim.orderId())
-                .orElseThrow(() -> new IllegalStateException("Checkout order disappeared during recovery"));
-        // The delivery snapshot is read from the persisted workflow, not reconstructed from the order.
-        var workflow = statesSnapshot(claim);
+        var workflow = workflows.findById(claim.workflowId())
+                .orElseThrow(() -> new IllegalStateException("Checkout workflow disappeared during recovery"));
         var shipment = shipping.create(claim.orderId(), workflow.getDeliveryAddress());
         fulfillmentStates.complete(claim.workflowId(), claim.workerId(), shipment.id(), Instant.now());
-    }
-
-    private io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowEntity statesSnapshot(
-            CheckoutSagaClaimService.ClaimedSaga claim) {
-        return statesSnapshotRepository(claim.workflowId());
-    }
-
-    private io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowEntity statesSnapshotRepository(
-            java.util.UUID id) {
-        return workflowRepository.findById(id)
-                .orElseThrow(() -> new IllegalStateException("Checkout workflow disappeared during recovery"));
-    }
-
-    private final io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowRepository workflowRepository;
-
-    @org.springframework.beans.factory.annotation.Autowired
-    public CheckoutSagaRecoveryWorker(CheckoutSagaClaimService claims,
-                                     CheckoutWorkflowStateService states,
-                                     CheckoutFulfillmentStateService fulfillmentStates,
-                                     OrderOperations orders,
-                                     PaymentOperations payments,
-                                     ShippingOperations shipping,
-                                     io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowRepository workflowRepository) {
-        this(claims, states, fulfillmentStates, orders, payments, shipping);
-        this.workflowRepository = workflowRepository;
     }
 
     private static String paymentIdempotencyKey(String checkoutKey) {
