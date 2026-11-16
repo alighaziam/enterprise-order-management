@@ -28,10 +28,12 @@ public interface CheckoutWorkflowRepository extends JpaRepository<CheckoutWorkfl
             WITH due AS (
                 SELECT id
                 FROM checkout.workflows
-                WHERE status = 'FULFILLMENT_PENDING'
-                  AND next_attempt_at <= :now
+                WHERE (
+                    (status = 'FULFILLMENT_PENDING' AND next_attempt_at <= :now)
+                    OR (status = 'ORDER_CONFIRMED' AND updated_at <= :recoveryCutoff)
+                )
                   AND (fulfillment_lease_until IS NULL OR fulfillment_lease_until < :now)
-                ORDER BY next_attempt_at ASC, updated_at ASC
+                ORDER BY COALESCE(next_attempt_at, updated_at) ASC, updated_at ASC
                 FOR UPDATE SKIP LOCKED
                 LIMIT :batchSize
             )
@@ -45,6 +47,7 @@ public interface CheckoutWorkflowRepository extends JpaRepository<CheckoutWorkfl
     int claimDueFulfillment(@Param("workerId") String workerId,
                             @Param("now") Instant now,
                             @Param("leaseUntil") Instant leaseUntil,
+                            @Param("recoveryCutoff") Instant recoveryCutoff,
                             @Param("batchSize") int batchSize);
 
     List<CheckoutWorkflowEntity> findByFulfillmentLockedByOrderByNextAttemptAtAsc(String workerId);
