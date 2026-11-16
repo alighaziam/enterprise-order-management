@@ -41,6 +41,7 @@ class ApiSecurityTest {
         http = RestClient.builder().baseUrl("http://localhost:" + port).build();
         when(jwtDecoder.decode("orders-token")).thenReturn(jwt("orders-token", "orders.read"));
         when(jwtDecoder.decode("customers-token")).thenReturn(jwt("customers-token", "customers.read"));
+        when(jwtDecoder.decode("operations-token")).thenReturn(jwt("operations-token", "operations.admin"));
     }
 
     @Test
@@ -89,6 +90,48 @@ class ApiSecurityTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer customers-token")
                         .retrieve().toBodilessEntity());
         assertEquals(404, response.getStatusCode().value());
+    }
+
+    @Test
+    void publicHealthRemainsAvailableButActuatorMetricsRequireOperationsScope() {
+        String health = http.get().uri("/actuator/health").retrieve().body(String.class);
+        assertTrue(health.contains("\"status\":\"UP\""));
+
+        RestClientResponseException forbidden = assertThrows(RestClientResponseException.class,
+                () -> http.get().uri("/actuator/metrics")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer orders-token")
+                        .retrieve().toBodilessEntity());
+        assertEquals(403, forbidden.getStatusCode().value());
+
+        String metrics = http.get().uri("/actuator/metrics")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                .retrieve().body(String.class);
+        assertTrue(metrics.contains("\"names\""));
+    }
+
+    @Test
+    void unmatchedApiRoutesRemainDeniedEvenForAuthenticatedUsers() {
+        RestClientResponseException response = assertThrows(RestClientResponseException.class,
+                () -> http.get().uri("/api/v1/unmapped")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer customers-token")
+                        .retrieve().toBodilessEntity());
+        assertEquals(403, response.getStatusCode().value());
+    }
+
+    @Test
+    void outboxReplayRequiresOperationsAdminScope() {
+        String eventId = UUID.randomUUID().toString();
+        RestClientResponseException forbidden = assertThrows(RestClientResponseException.class,
+                () -> http.post().uri("/api/v1/outbox/events/" + eventId + "/replay")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer customers-token")
+                        .retrieve().toBodilessEntity());
+        assertEquals(403, forbidden.getStatusCode().value());
+
+        RestClientResponseException notFound = assertThrows(RestClientResponseException.class,
+                () -> http.post().uri("/api/v1/outbox/events/" + eventId + "/replay")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                        .retrieve().toBodilessEntity());
+        assertEquals(404, notFound.getStatusCode().value());
     }
 
     private static Jwt jwt(String token, String scope) {
