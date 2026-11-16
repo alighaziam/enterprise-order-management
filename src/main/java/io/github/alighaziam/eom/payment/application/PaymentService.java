@@ -30,12 +30,12 @@ public class PaymentService implements PaymentOperations {
             PaymentStatus.REFUND_PENDING);
 
     private final PaymentRepository repository;
-    private final SandboxPaymentGateway gateway;
+    private final PaymentGateway gateway;
     private final OutboxOperations outbox;
     private final OrderOperations orders;
 
     public PaymentService(PaymentRepository repository,
-                          SandboxPaymentGateway gateway,
+                          PaymentGateway gateway,
                           OutboxOperations outbox,
                           OrderOperations orders) {
         this.repository = repository;

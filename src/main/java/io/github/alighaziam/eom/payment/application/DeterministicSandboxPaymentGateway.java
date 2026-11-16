@@ -1,11 +1,13 @@
 package io.github.alighaziam.eom.payment.application;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Component
+@ConditionalOnProperty(name = "app.payment.provider", havingValue = "sandbox", matchIfMissing = true)
 public class DeterministicSandboxPaymentGateway implements SandboxPaymentGateway {
 
     @Override

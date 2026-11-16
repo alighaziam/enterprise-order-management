@@ -30,6 +30,8 @@ spring:
         "enable.idempotence": true
         "max.in.flight.requests.per.connection": 5
 app:
+  payment:
+    provider: ${PAYMENT_PROVIDER:sandbox}
   security:
     enabled: ${APP_SECURITY_ENABLED:true}
   outbox:
