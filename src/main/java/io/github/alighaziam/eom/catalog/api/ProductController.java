@@ -9,7 +9,6 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 @RestController @RequestMapping("/api/v1/products")
 public class ProductController {
@@ -26,7 +25,7 @@ public class ProductController {
  @PutMapping("/{id}") public ProductResponse update(@PathVariable UUID id,@Valid @RequestBody UpdateProductRequest r){
   return ProductResponse.from(service.update(id,r.name(),r.description(),r.unitPrice(),r.currency()));
  }
- @PostMapping("/{id}/active") public ProductResponse setActive(@PathVariable UUID id,@RequestBody ActiveRequest r){
+ @PostMapping("/{id}/active") public ProductResponse setActive(@PathVariable UUID id,@Valid @RequestBody ActiveRequest r){
   return ProductResponse.from(service.setActive(id,r.active()));
  }
  @ExceptionHandler(ProductNotFoundException.class) @ResponseStatus(HttpStatus.NOT_FOUND)
@@ -38,7 +37,7 @@ public class ProductController {
   @NotBlank @Pattern(regexp="[A-Za-z]{3}") String currency){}
  public record UpdateProductRequest(@NotBlank @Size(max=180) String name,@Size(max=1000) String description,
   @NotNull @DecimalMin("0.0001") @Digits(integer=15,fraction=4) BigDecimal unitPrice,@NotBlank @Pattern(regexp="[A-Za-z]{3}") String currency){}
- public record ActiveRequest(boolean active){}
+ public record ActiveRequest(@NotNull Boolean active){}
  public record ProductResponse(UUID id,String sku,String name,String description,BigDecimal unitPrice,String currency,boolean active,Instant createdAt){
   static ProductResponse from(Product p){return new ProductResponse(p.id(),p.sku(),p.name(),p.description(),p.unitPrice(),p.currency(),p.active(),p.createdAt());}
  }

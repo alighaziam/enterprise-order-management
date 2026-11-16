@@ -5,6 +5,7 @@ import io.github.alighaziam.eom.customer.domain.Customer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -44,7 +45,7 @@ public class CustomerController {
     }
 
     @PostMapping("/{id}/active")
-    public CustomerResponse setActive(@PathVariable UUID id, @RequestBody ActiveRequest request) {
+    public CustomerResponse setActive(@PathVariable UUID id, @Valid @RequestBody ActiveRequest request) {
         return CustomerResponse.from(customerService.setActive(id, request.active()));
     }
 
@@ -60,7 +61,7 @@ public class CustomerController {
             @NotBlank @Email @Size(max = 254) String email
     ) {}
 
-    public record ActiveRequest(boolean active) {}
+    public record ActiveRequest(@NotNull Boolean active) {}
 
     public record CustomerResponse(UUID id, String fullName, String email, boolean active, Instant createdAt) {
         static CustomerResponse from(Customer customer) {
