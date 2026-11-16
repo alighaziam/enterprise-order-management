@@ -45,5 +45,9 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - name: Verify
+      - name: Verify frontend JavaScript syntax
+        run: |
+          node --check src/main/resources/static/assets/console.js
+          node --check src/main/resources/static/assets/i18n.js
+      - name: Verify backend and integration tests
         run: mvn --batch-mode --no-transfer-progress clean verify
