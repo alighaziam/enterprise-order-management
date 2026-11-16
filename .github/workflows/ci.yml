@@ -51,3 +51,13 @@ jobs:
           node --check src/main/resources/static/assets/i18n.js
       - name: Verify backend and integration tests
         run: mvn --batch-mode --no-transfer-progress clean verify
+      - name: Verify Docker image and Compose configuration
+        run: |
+          mkdir -p docker/runtime/java
+          touch docker/runtime/java/.ci-placeholder
+          cp target/enterprise-order-management-0.1.0-SNAPSHOT.jar docker/runtime/app.jar
+          docker build --tag enterprise-order-management:ci .
+          DB_PASSWORD=ci-only \
+          WSO2_ISSUER_URI=https://identity.example.test/oauth2/token \
+          WSO2_JWKS_URI=https://identity.example.test/oauth2/jwks \
+            docker compose config --quiet
