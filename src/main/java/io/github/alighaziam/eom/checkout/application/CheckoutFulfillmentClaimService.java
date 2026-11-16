@@ -26,7 +26,8 @@ public class CheckoutFulfillmentClaimService {
         }
 
         String workerId = UUID.randomUUID().toString();
-        workflows.claimDueFulfillment(workerId, now, now.plusSeconds(LEASE_SECONDS), batchSize);
+        workflows.claimDueFulfillment(workerId, now, now.plusSeconds(LEASE_SECONDS),
+                now.minusSeconds(LEASE_SECONDS), batchSize);
         return workflows.findByFulfillmentLockedByOrderByNextAttemptAtAsc(workerId).stream()
                 .map(workflow -> new ClaimedFulfillment(
                         workflow.getId(), workflow.getOrderId(), workflow.getDeliveryAddress(), workerId))
