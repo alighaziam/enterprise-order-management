@@ -14,5 +14,5 @@ import io.github.alighaziam.eom.payment.*; import io.github.alighaziam.eom.payme
  ProblemDetail conflict(IllegalStateException e){return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,e.getMessage());}
  @ExceptionHandler(IllegalArgumentException.class) @ResponseStatus(HttpStatus.BAD_REQUEST)
  ProblemDetail badRequest(IllegalArgumentException e){return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,e.getMessage());}
- public record AuthorizeRequest(@NotNull UUID orderId,@NotNull @DecimalMin("0.0001") BigDecimal amount,@NotBlank @Pattern(regexp="[A-Z]{3}") String currency,@NotBlank @Size(max=120) String idempotencyKey){}
+ public record AuthorizeRequest(@NotNull UUID orderId,@NotNull @DecimalMin("0.0001") @Digits(integer=15,fraction=4) BigDecimal amount,@NotBlank @Pattern(regexp="[A-Z]{3}") String currency,@NotBlank @Size(max=120) String idempotencyKey){}
 }
