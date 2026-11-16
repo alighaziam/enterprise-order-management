@@ -137,4 +137,5 @@ public class OutboxEntity {
     public Instant getPublishedAt() { return publishedAt; }
     public Instant getDeadLetteredAt() { return deadLetteredAt; }
     public String getLockedBy() { return lockedBy; }
+    public Instant getLockedUntil() { return lockedUntil; }
 }
