@@ -130,6 +130,21 @@ class PaymentIdempotencyIntegrationTest {
     }
 
     @Test
+    void rejectsAmountsThatExceedTheDatabasePrecisionAndScale() {
+        UUID orderId = UUID.randomUUID();
+
+        assertThrows(IllegalArgumentException.class, () ->
+                payments.authorize(orderId, new BigDecimal("1000000000000000.00"), "EUR",
+                        "too-many-integer-digits-" + UUID.randomUUID()));
+        assertThrows(IllegalArgumentException.class, () ->
+                payments.authorize(orderId, new BigDecimal("1.00001"), "EUR",
+                        "too-many-fractional-digits-" + UUID.randomUUID()));
+        assertThrows(IllegalArgumentException.class, () ->
+                payments.authorize(orderId, new BigDecimal("0.0001"), "EUR",
+                        "valid-precision-" + UUID.randomUUID()));
+    }
+
+    @Test
     void rejectsAuthorizationForAnOrderThatIsNoLongerReserved() {
         BigDecimal amount = new BigDecimal("25.00");
         OrderOperations.OrderSummary order = createReservedOrder(amount);

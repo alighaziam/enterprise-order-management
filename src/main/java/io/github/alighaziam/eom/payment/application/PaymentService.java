@@ -183,11 +183,18 @@ public class PaymentService implements PaymentOperations {
     private static void validateAuthorizationRequest(UUID orderId, BigDecimal amount,
                                                      String currency, String idempotencyKey) {
         if (orderId == null || amount == null || amount.signum() <= 0
+                || !fitsDatabaseAmount(amount)
                 || currency == null || !currency.matches("[A-Z]{3}")
                 || idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 120) {
             throw new IllegalArgumentException(
-                    "Order, positive amount, ISO currency, and idempotency key are required.");
+                    "Order, positive amount with at most 15 integer and 4 fractional digits, ISO currency, and idempotency key are required.");
         }
+    }
+
+    private static boolean fitsDatabaseAmount(BigDecimal amount) {
+        BigDecimal normalized = amount.stripTrailingZeros();
+        int integerDigits = normalized.precision() - normalized.scale();
+        return normalized.scale() <= 4 && integerDigits <= 15;
     }
 
     private PaymentIntent validateReplay(PaymentIntentEntity entity, UUID orderId,
