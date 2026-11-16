@@ -222,6 +222,34 @@ class ApiScenarioTest {
         assertEquals(9, ((Number) JsonPath.read(stock, "$.onHandQuantity")).intValue());
     }
 
+    @Test
+    void orderAndCheckoutRejectMoreThanOneHundredLines() {
+        String productId = UUID.randomUUID().toString();
+        String lines = java.util.stream.IntStream.range(0, 101)
+                .mapToObj(i -> "{\"productId\":\"" + productId + "\",\"quantity\":1}")
+                .collect(java.util.stream.Collectors.joining(",", "[", "]"));
+
+        RestClientResponseException order = assertThrows(RestClientResponseException.class,
+                () -> post("/api/v1/orders", "{\"customerId\":\"" + UUID.randomUUID()
+                        + "\",\"lines\":" + lines + "}"));
+        assertEquals(400, order.getStatusCode().value());
+
+        String checkoutBody = """
+                {
+                  "customerId":"%s",
+                  "lines":%s,
+                  "recipientName":"Validation Customer",
+                  "addressLine1":"Test Street 1",
+                  "city":"Berlin",
+                  "countryCode":"DE",
+                  "idempotencyKey":"line-limit-%s"
+                }
+                """.formatted(UUID.randomUUID(), lines, UUID.randomUUID());
+        RestClientResponseException checkout = assertThrows(RestClientResponseException.class,
+                () -> post("/api/v1/checkouts", checkoutBody));
+        assertEquals(400, checkout.getStatusCode().value());
+    }
+
     private String post(String path, String json) {
         return http.post().uri(path).contentType(MediaType.APPLICATION_JSON).body(json).retrieve().body(String.class);
     }
