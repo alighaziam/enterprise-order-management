@@ -4,6 +4,7 @@ import io.github.alighaziam.eom.catalog.application.ProductService;
 import io.github.alighaziam.eom.customer.application.CustomerService;
 import io.github.alighaziam.eom.inventory.application.InventoryService;
 import io.github.alighaziam.eom.checkout.application.CheckoutFulfillmentClaimService;
+import io.github.alighaziam.eom.checkout.application.CheckoutRecoveryWorker;
 import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowEntity;
 import io.github.alighaziam.eom.checkout.infrastructure.CheckoutWorkflowRepository;
 import io.github.alighaziam.eom.shipping.DeliveryAddress;
@@ -12,10 +13,12 @@ import io.github.alighaziam.eom.outbox.infrastructure.OutboxEntity;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,11 +33,13 @@ class CheckoutWorkflowIntegrationTest {
     @Autowired ShippingOperations shipping;
     @Autowired CheckoutWorkflowRepository workflows;
     @Autowired CheckoutFulfillmentClaimService fulfillmentClaims;
+    @Autowired CheckoutRecoveryWorker recoveryWorker;
+    @Autowired JdbcTemplate jdbc;
     @Autowired OutboxRepository outbox;
 
 
     @Test
-    void claimsStaleOrderConfirmedWorkflowAfterCrashBeforeShipmentCheckpoint() {
+    void recoversStaleConfirmedWorkflowWhenProcessCrashesBeforeShipmentIsCreated() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         var customer = customers.create("Recovery Customer", "recovery-" + suffix + "@example.com");
         var product = products.create("RCV-" + suffix, "Recovery Product", "Checkout recovery",
@@ -46,16 +51,32 @@ class CheckoutWorkflowIntegrationTest {
                 "recovery-" + suffix);
         var result = checkout.checkout(request);
         assertEquals(CheckoutStatus.COMPLETED, result.status());
+        UUID originalShipmentId = result.shipmentId();
 
-        var workflow = workflows.findById(result.workflowId()).orElseThrow();
-        Instant now = Instant.now();
-        workflow.status(CheckoutStatus.ORDER_CONFIRMED, "simulated process crash", now.minusSeconds(180));
-        workflows.saveAndFlush(workflow);
+        // Recreate the durable state left by a process crash after ORDER_CONFIRMED,
+        // but before ShippingService.create() committed a shipment.
+        jdbc.update("""
+                UPDATE checkout.workflows
+                   SET status = 'ORDER_CONFIRMED', shipment_id = NULL,
+                       updated_at = ?, fulfillment_locked_by = NULL, fulfillment_lease_until = NULL
+                 WHERE id = ?
+                """, Timestamp.from(Instant.now().minusSeconds(180)), result.workflowId());
+        jdbc.update("DELETE FROM shipping.shipments WHERE id = ?", originalShipmentId);
 
-        var claimed = fulfillmentClaims.claimBatch(now, 20);
+        assertEquals(0, jdbc.queryForObject(
+                "SELECT count(*) FROM shipping.shipments WHERE order_id = ?",
+                Integer.class, result.orderId()));
 
-        assertEquals(1, claimed.stream().filter(item -> item.workflowId().equals(result.workflowId())).count(),
-                "A stale ORDER_CONFIRMED workflow must be recovered after the process crash.");
+        recoveryWorker.retryPendingFulfillment();
+
+        var recovered = checkout.get(result.workflowId());
+        assertEquals(CheckoutStatus.COMPLETED, recovered.status());
+        assertNotNull(recovered.shipmentId());
+        assertNotEquals(originalShipmentId, recovered.shipmentId());
+        assertEquals(result.orderId(), shipping.get(recovered.shipmentId()).orderId());
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT count(*) FROM shipping.shipments WHERE order_id = ?",
+                Integer.class, result.orderId()));
     }
 
     @Test
