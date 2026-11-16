@@ -40,6 +40,38 @@ class OutboxClaimIntegrationTest {
     }
 
     @Test
+    void anExpiredWorkerCannotCompleteAnEventAfterAnotherWorkerReclaimsIt() {
+        UUID eventId = UUID.randomUUID();
+        Instant now = Instant.now();
+        repository.saveAndFlush(new OutboxEntity(eventId, "LeaseRace", 1, now,
+                "Test", eventId.toString(), 1, eventId.toString(), null, "{}", now));
+
+        try {
+            var firstClaim = claimService.claimBatch(50, now);
+            String firstWorker = firstClaim.stream()
+                    .filter(event -> event.getEventId().equals(eventId))
+                    .findFirst().orElseThrow().getLockedBy();
+
+            var secondClaim = claimService.claimBatch(50, now.plusSeconds(121));
+            String secondWorker = secondClaim.stream()
+                    .filter(event -> event.getEventId().equals(eventId))
+                    .findFirst().orElseThrow().getLockedBy();
+
+            assertNotEquals(firstWorker, secondWorker);
+            assertFalse(claimService.markPublished(eventId, firstWorker, now.plusSeconds(122)));
+
+            OutboxEntity stillClaimed = repository.findById(eventId).orElseThrow();
+            assertEquals(secondWorker, stillClaimed.getLockedBy());
+            assertNull(stillClaimed.getPublishedAt());
+
+            assertTrue(claimService.markPublished(eventId, secondWorker, now.plusSeconds(122)));
+            assertNotNull(repository.findById(eventId).orElseThrow().getPublishedAt());
+        } finally {
+            repository.deleteById(eventId);
+        }
+    }
+
+    @Test
     void aLaterEventWaitsUntilTheEarlierEventForTheSameAggregateIsPublished() {
         Instant due = Instant.now().plusSeconds(3600);
         UUID first = UUID.randomUUID();

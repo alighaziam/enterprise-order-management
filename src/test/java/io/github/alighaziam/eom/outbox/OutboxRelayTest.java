@@ -3,22 +3,20 @@ package io.github.alighaziam.eom.outbox;
 import io.github.alighaziam.eom.outbox.application.OutboxRelay;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxClaimService;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxEntity;
-import io.github.alighaziam.eom.outbox.infrastructure.OutboxRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class OutboxRelayTest {
 
     @Test
-    void recordsFailureAndPersistsRetryStateWhenPublisherThrows() {
+    void recordsFailureThroughTheLeaseOwnerAfterPublisherThrows() {
         OutboxClaimService claimService = mock(OutboxClaimService.class);
-        OutboxRepository repository = mock(OutboxRepository.class);
         OutboxEventPublisher publisher = mock(OutboxEventPublisher.class);
         Instant created = Instant.now();
         OutboxEntity event = new OutboxEntity(UUID.randomUUID(), "OrderPlaced", 1, created,
@@ -28,18 +26,15 @@ class OutboxRelayTest {
         doThrow(new IllegalStateException("broker unavailable"))
                 .when(publisher).publish(any(IntegrationEvent.class));
 
-        new OutboxRelay(claimService, repository, publisher).publishPending();
+        new OutboxRelay(claimService, publisher).publishPending();
 
-        assertEquals(1, event.getAttempts());
-        assertNotNull(event.getNextAttemptAt());
-        assertNull(event.getPublishedAt());
-        verify(repository).saveAndFlush(event);
+        verify(claimService).markFailed(eq(event.getEventId()), isNull(),
+                eq("broker unavailable"), any(Instant.class));
     }
 
     @Test
-    void marksEventPublishedAfterSuccessfulDispatch() {
+    void acknowledgesEventOnlyThroughItsClaimLease() {
         OutboxClaimService claimService = mock(OutboxClaimService.class);
-        OutboxRepository repository = mock(OutboxRepository.class);
         OutboxEventPublisher publisher = mock(OutboxEventPublisher.class);
         Instant created = Instant.now();
         OutboxEntity event = new OutboxEntity(UUID.randomUUID(), "OrderPlaced", 1, created,
@@ -47,9 +42,10 @@ class OutboxRelayTest {
 
         when(claimService.claimBatch(10)).thenReturn(List.of(event));
 
-        new OutboxRelay(claimService, repository, publisher).publishPending();
+        new OutboxRelay(claimService, publisher).publishPending();
 
-        assertNotNull(event.getPublishedAt());
-        verify(repository).saveAndFlush(event);
+        verify(publisher).publish(any(IntegrationEvent.class));
+        verify(claimService).markPublished(eq(event.getEventId()), isNull(), any(Instant.class));
+        verify(claimService, never()).markFailed(any(), any(), any(), any());
     }
 }

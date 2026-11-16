@@ -3,7 +3,6 @@ package io.github.alighaziam.eom.outbox.application;
 import io.github.alighaziam.eom.outbox.OutboxEventPublisher;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxClaimService;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxEntity;
-import io.github.alighaziam.eom.outbox.infrastructure.OutboxRepository;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -15,14 +14,10 @@ public class OutboxRelay {
     private static final int BATCH_SIZE = 10;
 
     private final OutboxClaimService claimService;
-    private final OutboxRepository repository;
     private final OutboxEventPublisher publisher;
 
-    public OutboxRelay(OutboxClaimService claimService,
-                       OutboxRepository repository,
-                       OutboxEventPublisher publisher) {
+    public OutboxRelay(OutboxClaimService claimService, OutboxEventPublisher publisher) {
         this.claimService = claimService;
-        this.repository = repository;
         this.publisher = publisher;
     }
 
@@ -31,11 +26,11 @@ public class OutboxRelay {
         for (OutboxEntity row : claimService.claimBatch(BATCH_SIZE)) {
             try {
                 publisher.publish(row.toEvent());
-                row.published(Instant.now());
+                claimService.markPublished(row.getEventId(), row.getLockedBy(), Instant.now());
             } catch (RuntimeException exception) {
-                row.failed(exception.getMessage(), Instant.now());
+                claimService.markFailed(row.getEventId(), row.getLockedBy(),
+                        exception.getMessage(), Instant.now());
             }
-            repository.saveAndFlush(row);
             if (Thread.currentThread().isInterrupted()) {
                 return;
             }
