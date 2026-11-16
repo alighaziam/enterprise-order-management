@@ -105,6 +105,11 @@ public class OrderService implements OrderOperations {
             total = total.add(line.subtotal());
         }
 
+        if (!fitsDatabaseAmount(total)) {
+            throw new OrderConflictException(
+                    "Order total exceeds NUMERIC(19,4): at most 15 integer and 4 fractional digits are supported.");
+        }
+
         Instant now = Instant.now();
         Order saved = store.save(new Order(UUID.randomUUID(), customerId, OrderStatus.RESERVED,
                 currency, total, lines, now, now));
@@ -204,6 +209,12 @@ public class OrderService implements OrderOperations {
     public java.util.Optional<OrderDetails> orderDetails(UUID id) {
         return store.findByIdForUpdate(id).map(order -> new OrderDetails(order.id(), order.totalAmount(),
                 order.currency(), OrderState.valueOf(order.status().name())));
+    }
+
+    private static boolean fitsDatabaseAmount(BigDecimal amount) {
+        BigDecimal normalized = amount.stripTrailingZeros();
+        int integerDigits = normalized.precision() - normalized.scale();
+        return normalized.signum() > 0 && normalized.scale() <= 4 && integerDigits <= 15;
     }
 
     private OrderSummary summary(Order order) {
