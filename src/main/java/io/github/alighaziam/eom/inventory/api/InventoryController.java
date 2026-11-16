@@ -76,9 +76,9 @@ public class InventoryController {
         return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, exception.getMessage());
     }
 
-    public record InitializeStockRequest(@NotNull UUID productId, @Min(0) int quantity) {}
-    public record QuantityRequest(@Min(0) int quantity) {}
-    public record ReserveStockRequest(@NotNull UUID productId, @Min(1) int quantity) {}
+    public record InitializeStockRequest(@NotNull UUID productId, @NotNull @Min(0) Integer quantity) {}
+    public record QuantityRequest(@NotNull @Min(0) Integer quantity) {}
+    public record ReserveStockRequest(@NotNull UUID productId, @NotNull @Min(1) Integer quantity) {}
 
     public record StockResponse(
             UUID productId, int onHandQuantity, int reservedQuantity, int availableQuantity, Instant updatedAt
