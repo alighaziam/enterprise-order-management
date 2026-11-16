@@ -126,6 +126,27 @@ class OrderServiceTest {
         verifyNoInteractions(outbox);
     }
 
+    @Test
+    void rejectsOrderTotalsThatExceedDatabasePrecision() {
+        UUID product = UUID.randomUUID();
+        UUID reservation = UUID.randomUUID();
+        InMemoryStore store = new InMemoryStore();
+        InventoryOperations inventory = mock(InventoryOperations.class);
+        OutboxOperations outbox = mock(OutboxOperations.class);
+        when(inventory.reserve(product, 2)).thenReturn(reservation);
+        CatalogOperations catalog = id -> Optional.of(new CatalogProduct(
+                product, "SKU-EXP", "Expensive", new BigDecimal("999999999999999.9999"), "EUR", true));
+
+        OrderService service = new OrderService(store, id -> true, catalog, inventory, outbox,
+                mock(OrderCancellationGuard.class), mock(OrderConfirmationGuard.class));
+
+        assertThrows(OrderConflictException.class, () -> service.place(UUID.randomUUID(),
+                List.of(new OrderService.OrderRequestLine(product, 2))));
+
+        assertTrue(store.orders.isEmpty());
+        verifyNoInteractions(outbox);
+    }
+
     private static class InMemoryStore implements OrderStore {
         private final Map<UUID, Order> orders = new HashMap<>();
 
