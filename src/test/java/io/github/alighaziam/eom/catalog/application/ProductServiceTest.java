@@ -17,6 +17,21 @@ class ProductServiceTest {
   service.create("SKU-1","Keyboard",null,new BigDecimal("10.00"),"USD");
   assertThrows(DuplicateSkuException.class,()->service.create("sku-1","Other",null,new BigDecimal("12.00"),"USD"));
  }
+ @Test void rejectsPriceOutsideDatabasePrecisionOnCreate(){
+  ProductService service=new ProductService(new InMemoryStore());
+  assertThrows(IllegalArgumentException.class,()->service.create("SKU-2","Invalid",null,new BigDecimal("1000000000000000.00"),"USD"));
+  assertThrows(IllegalArgumentException.class,()->service.create("SKU-3","Invalid",null,new BigDecimal("1.00001"),"USD"));
+ }
+ @Test void rejectsPriceOutsideDatabasePrecisionOnUpdate(){
+  ProductService service=new ProductService(new InMemoryStore());
+  Product product=service.create("SKU-4","Keyboard",null,new BigDecimal("10.00"),"USD");
+  assertThrows(IllegalArgumentException.class,()->service.update(product.id(),"Keyboard",null,new BigDecimal("1.00001"),"USD"));
+ }
+ @Test void acceptsMaximumSupportedPrice(){
+  ProductService service=new ProductService(new InMemoryStore());
+  Product product=service.create("SKU-5","Expensive",null,new BigDecimal("999999999999999.9999"),"USD");
+  assertEquals(new BigDecimal("999999999999999.9999"),product.unitPrice());
+ }
  private static class InMemoryStore implements ProductStore{
   private final Map<UUID,Product> data=new HashMap<>();
   public Product save(Product p){data.put(p.id(),p);return p;}
