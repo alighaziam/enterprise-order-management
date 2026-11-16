@@ -200,7 +200,7 @@ class InventoryConcurrencyIntegrationTest {
                 "{\"productId\":\"" + productId + "\",\"quantity\":5}");
         String reservation = post("/api/v1/inventory/reservations",
                 "{\"productId\":\"" + productId + "\",\"quantity\":1}");
-        String reservationId = JsonPath.read(reservation, "$.id");
+        String reservationId = JsonPath.read(reservation, "$.reservationId");
         return new ReservationFixture(UUID.fromString(productId), UUID.fromString(reservationId));
     }
 
