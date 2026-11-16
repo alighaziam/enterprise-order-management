@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,6 +31,32 @@ class CheckoutWorkflowIntegrationTest {
     @Autowired CheckoutWorkflowRepository workflows;
     @Autowired CheckoutFulfillmentClaimService fulfillmentClaims;
     @Autowired OutboxRepository outbox;
+
+
+    @Test
+    void claimsStaleOrderConfirmedWorkflowAfterCrashBeforeShipmentCheckpoint() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        var customer = customers.create("Recovery Customer", "recovery-" + suffix + "@example.com");
+        var product = products.create("RCV-" + suffix, "Recovery Product", "Checkout recovery",
+                new BigDecimal("8.00"), "EUR");
+        inventory.initializeStock(product.id(), 3);
+        var request = new CheckoutOperations.CheckoutRequest(customer.id(),
+                List.of(new io.github.alighaziam.eom.order.OrderOperations.OrderLineRequest(product.id(), 1)),
+                new DeliveryAddress("Recipient", "Recovery Street 1", null, "Berlin", "10115", "DE", null),
+                "recovery-" + suffix);
+        var result = checkout.checkout(request);
+        assertEquals(CheckoutStatus.COMPLETED, result.status());
+
+        var workflow = workflows.findById(result.workflowId()).orElseThrow();
+        Instant now = Instant.now();
+        workflow.status(CheckoutStatus.ORDER_CONFIRMED, "simulated process crash", now.minusSeconds(180));
+        workflows.saveAndFlush(workflow);
+
+        var claimed = fulfillmentClaims.claimBatch(now, 20);
+
+        assertEquals(1, claimed.stream().filter(item -> item.workflowId().equals(result.workflowId())).count(),
+                "A stale ORDER_CONFIRMED workflow must be recovered after the process crash.");
+    }
 
     @Test
     void completesSandboxCheckoutAndPersistsWorkflowAndShipment() {
