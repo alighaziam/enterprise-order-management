@@ -553,7 +553,7 @@ function readDraft(form) {
     state.draft.lines[Number(input.dataset.index)].productId = input.value;
   });
   form.querySelectorAll("[data-line='quantity']").forEach((input) => {
-    state.draft.lines[Number(input.dataset.index)].quantity = Number(input.value || 1);
+    state.draft.lines[Number(input.dataset.index)].quantity = input.value === "" ? "" : Number(input.value);
   });
 }
 
