@@ -50,6 +50,32 @@ public interface CheckoutWorkflowRepository extends JpaRepository<CheckoutWorkfl
                             @Param("recoveryCutoff") Instant recoveryCutoff,
                             @Param("batchSize") int batchSize);
 
+    @Modifying
+    @Query(value = """
+            WITH due AS (
+                SELECT id
+                FROM checkout.workflows
+                WHERE status IN ('ORDER_RESERVED', 'PAYMENT_AUTHORIZED', 'PAYMENT_CAPTURED')
+                  AND updated_at <= :recoveryCutoff
+                  AND (fulfillment_lease_until IS NULL OR fulfillment_lease_until < :now)
+                ORDER BY updated_at ASC
+                FOR UPDATE SKIP LOCKED
+                LIMIT :batchSize
+            )
+            UPDATE checkout.workflows AS workflow
+               SET fulfillment_locked_by = :workerId,
+                   fulfillment_lease_until = :leaseUntil
+              FROM due
+             WHERE workflow.id = due.id
+            """, nativeQuery = true)
+    int claimStaleSaga(@Param("workerId") String workerId,
+                       @Param("now") Instant now,
+                       @Param("leaseUntil") Instant leaseUntil,
+                       @Param("recoveryCutoff") Instant recoveryCutoff,
+                       @Param("batchSize") int batchSize);
+
+    List<CheckoutWorkflowEntity> findByFulfillmentLockedByOrderByUpdatedAtAsc(String workerId);
+
     List<CheckoutWorkflowEntity> findByFulfillmentLockedByOrderByNextAttemptAtAsc(String workerId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

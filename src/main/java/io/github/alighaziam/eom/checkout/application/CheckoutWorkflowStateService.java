@@ -12,7 +12,7 @@ import java.util.UUID;
 
 /**
  * Commits a checkout workflow checkpoint and its integration event atomically.
- * The orchestrator invokes the local sandbox adapters separately; this service
+ * The orchestrator invokes local sandbox adapters separately; this service
  * owns only the short workflow/outbox transaction.
  */
 @Service
@@ -36,6 +36,42 @@ public class CheckoutWorkflowStateService {
         workflow.payment(paymentId, status, now);
         return persistAndPublish(workflow, "Checkout" + status.name(),
                 "{\"paymentId\":\"" + paymentId + "\"}");
+    }
+
+    @Transactional
+    public boolean recordSagaPayment(UUID workflowId, String workerId, UUID paymentId,
+                                     CheckoutStatus status, Instant now) {
+        if (status != CheckoutStatus.PAYMENT_AUTHORIZED && status != CheckoutStatus.PAYMENT_CAPTURED) {
+            throw new IllegalArgumentException("Payment checkpoint status is not supported.");
+        }
+        CheckoutWorkflowEntity workflow = claimed(workflowId, workerId, now);
+        if (workflow == null) return false;
+        workflow.payment(paymentId, status, now);
+        persistAndPublish(workflow, "Checkout" + status.name(),
+                "{\"paymentId\":\"" + paymentId + "\"}");
+        return true;
+    }
+
+    @Transactional
+    public boolean recordSagaStatus(UUID workflowId, String workerId, CheckoutStatus status, Instant now) {
+        if (status != CheckoutStatus.ORDER_CONFIRMED) {
+            throw new IllegalArgumentException("Saga recovery status is not supported.");
+        }
+        CheckoutWorkflowEntity workflow = claimed(workflowId, workerId, now);
+        if (workflow == null) return false;
+        workflow.status(status, null, now);
+        persistAndPublish(workflow, "Checkout" + status.name(),
+                "{\"orderId\":\"" + workflow.getOrderId() + "\",\"status\":\"" + status.name() + "\"}");
+        return true;
+    }
+
+    @Transactional
+    public boolean releaseSagaClaim(UUID workflowId, String workerId, String error, Instant now) {
+        CheckoutWorkflowEntity workflow = claimed(workflowId, workerId, now);
+        if (workflow == null) return false;
+        workflow.releaseSagaClaim(error, now);
+        workflows.saveAndFlush(workflow);
+        return true;
     }
 
     @Transactional
@@ -69,6 +105,12 @@ public class CheckoutWorkflowStateService {
         outbox.append(eventType, "CheckoutWorkflow", workflow.getId().toString(),
                 workflow.getEventVersion(), workflow.getId().toString(), null, payload);
         return workflow;
+    }
+
+    private CheckoutWorkflowEntity claimed(UUID id, String workerId, Instant now) {
+        if (workerId == null || workerId.isBlank() || now == null) return null;
+        return workflows.findByIdAndFulfillmentLockedByAndFulfillmentLeaseUntilAfter(id, workerId, now)
+                .orElse(null);
     }
 
     private CheckoutWorkflowEntity find(UUID id) {

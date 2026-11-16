@@ -34,6 +34,7 @@ class CheckoutWorkflowIntegrationTest {
     @Autowired CheckoutWorkflowRepository workflows;
     @Autowired CheckoutFulfillmentClaimService fulfillmentClaims;
     @Autowired CheckoutRecoveryWorker recoveryWorker;
+    @Autowired io.github.alighaziam.eom.checkout.application.CheckoutSagaRecoveryWorker sagaRecoveryWorker;
     @Autowired JdbcTemplate jdbc;
     @Autowired OutboxRepository outbox;
 
@@ -73,6 +74,44 @@ class CheckoutWorkflowIntegrationTest {
         assertEquals(CheckoutStatus.COMPLETED, recovered.status());
         assertNotNull(recovered.shipmentId());
         assertNotEquals(originalShipmentId, recovered.shipmentId());
+        assertEquals(result.orderId(), shipping.get(recovered.shipmentId()).orderId());
+        assertEquals(1, jdbc.queryForObject(
+                "SELECT count(*) FROM shipping.shipments WHERE order_id = ?",
+                Integer.class, result.orderId()));
+    }
+
+
+    @Test
+    void recoversCapturedPaymentAfterProcessCrashBeforeOrderConfirmation() {
+        String suffix = UUID.randomUUID().toString().substring(0, 8);
+        var customer = customers.create("Saga Recovery Customer", "saga-recovery-" + suffix + "@example.com");
+        var product = products.create("SGR-" + suffix, "Saga Recovery Product", "Saga recovery",
+                new BigDecimal("13.00"), "EUR");
+        inventory.initializeStock(product.id(), 2);
+        var request = new CheckoutOperations.CheckoutRequest(customer.id(),
+                List.of(new io.github.alighaziam.eom.order.OrderOperations.OrderLineRequest(product.id(), 1)),
+                new DeliveryAddress("Recipient", "Saga Recovery Road 2", null, "Berlin", "10115", "DE", null),
+                "saga-recovery-" + suffix);
+        var result = checkout.checkout(request);
+        assertEquals(CheckoutStatus.COMPLETED, result.status());
+
+        jdbc.update("""
+                UPDATE checkout.workflows
+                   SET status = 'PAYMENT_CAPTURED', shipment_id = NULL,
+                       updated_at = ?, fulfillment_locked_by = NULL, fulfillment_lease_until = NULL
+                 WHERE id = ?
+                """, Timestamp.from(Instant.now().minusSeconds(180)), result.workflowId());
+        jdbc.update("DELETE FROM shipping.shipments WHERE id = ?", result.shipmentId());
+        // Recreate the durable order state at the crash boundary: payment captured, order not yet confirmed.
+        jdbc.update("UPDATE ordering.orders SET status = 'RESERVED' WHERE id = ?", result.orderId());
+
+        sagaRecoveryWorker.recoverStaleSagaStages();
+
+        assertEquals("CONFIRMED", jdbc.queryForObject(
+                "SELECT status FROM ordering.orders WHERE id = ?", String.class, result.orderId()));
+        var recovered = checkout.get(result.workflowId());
+        assertEquals(CheckoutStatus.COMPLETED, recovered.status());
+        assertNotNull(recovered.shipmentId());
         assertEquals(result.orderId(), shipping.get(recovered.shipmentId()).orderId());
         assertEquals(1, jdbc.queryForObject(
                 "SELECT count(*) FROM shipping.shipments WHERE order_id = ?",

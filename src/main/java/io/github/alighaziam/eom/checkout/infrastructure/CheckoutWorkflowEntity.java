@@ -145,12 +145,19 @@ public class CheckoutWorkflowEntity {
         updatedAt = now;
     }
 
+    public void releaseSagaClaim(String error, Instant now) {
+        lastError = truncate(error);
+        clearFulfillmentLease();
+        updatedAt = now;
+    }
+
     public CheckoutOperations.CheckoutResult toResult() {
         return new CheckoutOperations.CheckoutResult(id, orderId, paymentId, shipmentId, status, lastError);
     }
 
     public UUID getId() { return id; }
     public UUID getOrderId() { return orderId; }
+    public String getIdempotencyKey() { return idempotencyKey; }
     public String getRequestFingerprint() { return requestFingerprint; }
     public UUID getPaymentId() { return paymentId; }
     public long getEventVersion() { return eventVersion; }
