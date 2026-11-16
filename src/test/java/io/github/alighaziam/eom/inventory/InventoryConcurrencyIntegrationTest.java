@@ -46,12 +46,12 @@ class InventoryConcurrencyIntegrationTest {
     void concurrentReservationsCannotOversellStock() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String product = post("/api/v1/products",
-                "{\\"sku\\":\\"RACE-" + suffix + "\\",\\"name\\":\\"Concurrent Inventory Test\\","
-                        + "\\"unitPrice\\":5.00,\\"currency\\":\\"EUR\\"}");
+                "{\"sku\":\"RACE-" + suffix + "\",\"name\":\"Concurrent Inventory Test\","
+                        + "\"unitPrice\":5.00,\"currency\":\"EUR\"}");
         String productId = JsonPath.read(product, "$.id");
 
         post("/api/v1/inventory/stock",
-                "{\\"productId\\":\\"" + productId + "\\",\\"quantity\\":5}");
+                "{\"productId\":\"" + productId + "\",\"quantity\":5}");
 
         int contenders = 20;
         CountDownLatch start = new CountDownLatch(1);
@@ -64,7 +64,7 @@ class InventoryConcurrencyIntegrationTest {
                     try {
                         http.post().uri("/api/v1/inventory/reservations")
                                 .contentType(MediaType.APPLICATION_JSON)
-                                .body("{\\"productId\\":\\"" + productId + "\\",\\"quantity\\":1}")
+                                .body("{\"productId\":\"" + productId + "\",\"quantity\":1}")
                                 .retrieve().toBodilessEntity();
                         return 201;
                     } catch (RestClientResponseException rejected) {
@@ -193,13 +193,13 @@ class InventoryConcurrencyIntegrationTest {
     private ReservationFixture createPendingReservation() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         String product = post("/api/v1/products",
-                "{\\"sku\\":\\"LIFECYCLE-" + suffix + "\\",\\"name\\":\\"Reservation Lifecycle Test\\","
-                        + "\\"unitPrice\\":5.00,\\"currency\\":\\"EUR\\"}");
+                "{\"sku\":\"LIFECYCLE-" + suffix + "\",\"name\":\"Reservation Lifecycle Test\","
+                        + "\"unitPrice\":5.00,\"currency\":\"EUR\"}");
         String productId = JsonPath.read(product, "$.id");
         post("/api/v1/inventory/stock",
-                "{\\"productId\\":\\"" + productId + "\\",\\"quantity\\":5}");
+                "{\"productId\":\"" + productId + "\",\"quantity\":5}");
         String reservation = post("/api/v1/inventory/reservations",
-                "{\\"productId\\":\\"" + productId + "\\",\\"quantity\\":1}");
+                "{\"productId\":\"" + productId + "\",\"quantity\":1}");
         String reservationId = JsonPath.read(reservation, "$.id");
         return new ReservationFixture(UUID.fromString(productId), UUID.fromString(reservationId));
     }
