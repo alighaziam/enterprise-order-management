@@ -19,7 +19,7 @@ public class ProductService {
  public Product create(String sku,String name,String description,BigDecimal price,String currency){
   String normalizedSku=sku.trim().toUpperCase(Locale.ROOT);
   if(store.existsBySku(normalizedSku)) throw new DuplicateSkuException(normalizedSku);
-  if(price==null||price.signum()<=0) throw new IllegalArgumentException("Unit price must be greater than zero.");
+  validatePrice(price);
   String normalizedCurrency=currency.trim().toUpperCase(Locale.ROOT);
   if(!normalizedCurrency.matches("[A-Z]{3}")) throw new IllegalArgumentException("Currency must be a three-letter ISO code.");
   try {
@@ -33,7 +33,7 @@ public class ProductService {
  @Transactional(readOnly=true) public List<Product> list(){return store.findRecent();}
  public Product update(UUID id, String name, String description, BigDecimal price, String currency){
   Product current=store.findByIdForUpdate(id).orElseThrow(()->new ProductNotFoundException(id));
-  if(price==null||price.signum()<=0) throw new IllegalArgumentException("Unit price must be greater than zero.");
+  validatePrice(price);
   String normalizedCurrency=currency.trim().toUpperCase(Locale.ROOT);
   if(!normalizedCurrency.matches("[A-Z]{3}")) throw new IllegalArgumentException("Currency must be a three-letter ISO code.");
   return store.save(new Product(current.id(), current.sku(), name.trim(), description==null?null:description.trim(), price, normalizedCurrency, current.active(), current.createdAt()));
@@ -44,5 +44,15 @@ public class ProductService {
  }
  @Transactional(readOnly=true) public Page<Product> search(String q, Boolean active, int page, int size){
   return store.search(q==null||q.isBlank()?null:q.trim(), active, PageRequest.of(Math.max(page,0), Math.min(Math.max(size,1),100), Sort.by(Sort.Direction.DESC,"createdAt")));
+ }
+ private static void validatePrice(BigDecimal price) {
+  if (price == null || price.signum() <= 0) {
+   throw new IllegalArgumentException("Unit price must be greater than zero.");
+  }
+  BigDecimal normalized = price.stripTrailingZeros();
+  int integerDigits = normalized.precision() - normalized.scale();
+  if (normalized.scale() > 4 || integerDigits > 15) {
+   throw new IllegalArgumentException("Unit price must fit NUMERIC(19,4): at most 15 integer and 4 fractional digits.");
+  }
  }
 }
