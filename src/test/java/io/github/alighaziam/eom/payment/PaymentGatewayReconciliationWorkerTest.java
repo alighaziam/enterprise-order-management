@@ -1,0 +1,77 @@
+package io.github.alighaziam.eom.payment;
+
+import io.github.alighaziam.eom.payment.application.PaymentGatewayReconciliation;
+import io.github.alighaziam.eom.payment.application.PaymentGatewayReconciliationWorker;
+import io.github.alighaziam.eom.payment.application.ProviderOperationLookup;
+import io.github.alighaziam.eom.payment.application.ProviderOperationState;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationClaimService;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationEntity;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationReconciliationService;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+class PaymentGatewayReconciliationWorkerTest {
+
+    @Test
+    void performsProviderLookupBetweenClaimAndLeaseGuardedResultPersistence() {
+        PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
+        PaymentGatewayReconciliation gateway = mock(PaymentGatewayReconciliation.class);
+        PaymentGatewayOperationReconciliationService results =
+                mock(PaymentGatewayOperationReconciliationService.class);
+        UUID operationId = UUID.randomUUID();
+        String workerId = UUID.randomUUID().toString();
+        PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
+        when(operation.getId()).thenReturn(operationId);
+        when(operation.getLockedBy()).thenReturn(workerId);
+        when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
+        when(operation.getIdempotencyKey()).thenReturn("stable-operation-key");
+        when(operation.getProviderReference()).thenReturn(null);
+        when(claims.claimUnknownBatch(eq(20), any(Instant.class))).thenReturn(List.of(operation));
+        when(gateway.lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null))
+                .thenReturn(new ProviderOperationLookup(ProviderOperationState.INDETERMINATE,
+                        null, "TIMEOUT", Instant.now(), false));
+        when(results.apply(eq(operationId), eq(workerId), any(), any(Instant.class))).thenReturn(true);
+
+        PaymentGatewayReconciliationWorker worker =
+                new PaymentGatewayReconciliationWorker(claims, gateway, results);
+
+        assertEquals(1, worker.reconcileBatch(Instant.now()));
+        verify(claims).claimUnknownBatch(eq(20), any(Instant.class));
+        verify(gateway).lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null);
+        verify(results).apply(eq(operationId), eq(workerId), any(ProviderOperationLookup.class), any(Instant.class));
+        verifyNoMoreInteractions(claims);
+    }
+
+    @Test
+    void lookupFailureLeavesOperationUnknownAndNeverSubmitsAnotherFinancialCommand() {
+        PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
+        PaymentGatewayReconciliation gateway = mock(PaymentGatewayReconciliation.class);
+        PaymentGatewayOperationReconciliationService results =
+                mock(PaymentGatewayOperationReconciliationService.class);
+        UUID operationId = UUID.randomUUID();
+        String workerId = UUID.randomUUID().toString();
+        PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
+        when(operation.getId()).thenReturn(operationId);
+        when(operation.getLockedBy()).thenReturn(workerId);
+        when(operation.getOperationType()).thenReturn(PaymentOperationType.REFUND);
+        when(operation.getIdempotencyKey()).thenReturn("stable-refund-key");
+        when(operation.getProviderReference()).thenReturn("provider-ref");
+        when(claims.claimUnknownBatch(eq(20), any(Instant.class))).thenReturn(List.of(operation));
+        when(gateway.lookup(PaymentOperationType.REFUND, "stable-refund-key", "provider-ref"))
+                .thenThrow(new IllegalStateException("network timeout"));
+        when(results.markUnknown(eq(operationId), eq(workerId), anyString(), any(Instant.class))).thenReturn(true);
+
+        PaymentGatewayReconciliationWorker worker =
+                new PaymentGatewayReconciliationWorker(claims, gateway, results);
+
+        assertEquals(1, worker.reconcileBatch(Instant.now()));
+        verify(results).markUnknown(eq(operationId), eq(workerId), contains("network timeout"), any(Instant.class));
+        verifyNoMoreInteractions(gateway);
+    }
+}
