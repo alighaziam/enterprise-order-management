@@ -2,8 +2,8 @@ package io.github.alighaziam.eom;
 
 import io.github.alighaziam.eom.checkout.CheckoutOperations;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
+import io.github.alighaziam.eom.payment.PaymentOperationMonitoring;
 import io.github.alighaziam.eom.payment.PaymentOperationStatus;
-import io.github.alighaziam.eom.payment.application.PaymentOperationMonitoring;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
