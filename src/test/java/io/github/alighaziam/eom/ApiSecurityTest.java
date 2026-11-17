@@ -120,6 +120,20 @@ class ApiSecurityTest {
     }
 
     @Test
+    void operatorAuditHistoryRequiresOperationsAdminScope() {
+        RestClientResponseException forbidden = assertThrows(RestClientResponseException.class,
+                () -> http.get().uri("/api/v1/operations/audit")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer customers-token")
+                        .retrieve().toBodilessEntity());
+        assertEquals(403, forbidden.getStatusCode().value());
+
+        String audit = http.get().uri("/api/v1/operations/audit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                .retrieve().body(String.class);
+        assertTrue(audit.contains("\"content\":"));
+    }
+
+    @Test
     void outboxReplayRequiresOperationsAdminScope() {
         String eventId = UUID.randomUUID().toString();
         RestClientResponseException forbidden = assertThrows(RestClientResponseException.class,
@@ -133,8 +147,31 @@ class ApiSecurityTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
                         .retrieve().toBodilessEntity());
         assertEquals(404, notFound.getStatusCode().value());
+
+        String audit = http.get().uri("/api/v1/operations/audit?q=" + eventId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                .retrieve().body(String.class);
+        assertTrue(audit.contains("OUTBOX_REPLAY"));
+        assertTrue(audit.contains("FAILED"));
+        assertTrue(audit.contains("security-test"));
     }
 
+
+    @Test
+    void checkoutCompensationAttemptsAreAuditedForOperators() {
+        String workflowId = UUID.randomUUID().toString();
+        RestClientResponseException notFound = assertThrows(RestClientResponseException.class,
+                () -> http.post().uri("/api/v1/checkouts/" + workflowId + "/reconcile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                        .retrieve().toBodilessEntity());
+        assertEquals(404, notFound.getStatusCode().value());
+
+        String audit = http.get().uri("/api/v1/operations/audit?q=" + workflowId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                .retrieve().body(String.class);
+        assertTrue(audit.contains("CHECKOUT_RECONCILE"));
+        assertTrue(audit.contains("FAILED"));
+    }
 
     @Test
     void outboxReadScopeCannotReplayDeadLetterEvents() {

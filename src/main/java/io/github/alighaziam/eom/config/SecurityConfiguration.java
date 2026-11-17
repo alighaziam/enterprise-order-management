@@ -35,6 +35,8 @@ public class SecurityConfiguration {
                                 "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/actuator/**").hasAuthority("SCOPE_operations.admin")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/operations/audit/**")
+                                .hasAuthority("SCOPE_operations.admin")
                         .requestMatchers(HttpMethod.GET, "/api/v1/customers/**").hasAuthority("SCOPE_customers.read")
                         .requestMatchers("/api/v1/customers/**").hasAuthority("SCOPE_customers.write")
                         .requestMatchers(HttpMethod.GET, "/api/v1/products/**").hasAuthority("SCOPE_catalog.read")

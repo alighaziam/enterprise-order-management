@@ -90,6 +90,7 @@ The payment module uses a provider-neutral adapter contract. The deterministic s
 | POST | /api/v1/checkouts/{id}/reconcile | Retry local compensation for COMPENSATION_REQUIRED |
 | GET | /api/v1/outbox/events | List recent outbox events |
 | POST | /api/v1/outbox/events/{eventId}/replay | Replay a dead-lettered event |
+| GET | /api/v1/operations/audit | Search operator recovery/replay audit history (operations.admin) |
 | GET | /actuator/health | Process health, dead letters, and compensation counts |
 | GET | /swagger-ui.html | OpenAPI UI |
 
@@ -152,6 +153,7 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Order confirmation/cancellation guards backed by locked payment state and a one-active-payment-per-order constraint
 - [x] Dashboard attention queues and operational counts across filtered result sets
 - [x] Non-root application container with read-only root filesystem and dropped Linux capabilities
+- [x] Operator audit trail for checkout compensation and dead-letter replay, with admin-only searchable history
 
 ## Security and WSO2 integration
 
@@ -168,7 +170,7 @@ Required authorities are derived from the JWT `scope` or `scp` claim using Sprin
 | Payments | `payments.read` | `payments.write` |
 | Shipments | `shipping.read` | `shipping.write` |
 | Checkouts | `checkout.read` | `checkout.write` |
-| Checkout reconciliation, outbox replay, management metrics | — | `operations.admin` |
+| Checkout reconciliation, outbox replay, operator audit history, management metrics | — | `operations.admin` |
 | Outbox inspection | `outbox.read` | `operations.admin` |
 
 All unmatched API paths are denied. The bearer-token API uses stateless sessions and does not create server-side HTTP sessions. Missing or invalid tokens return HTTP 401, and a valid token without the required scope returns HTTP 403. Both responses use `application/problem+json`. Only health and info are public actuator endpoints; health details are not exposed. Swagger is left reachable for the local operator experience and has an Authorize action for the same bearer token; restrict it at the ingress layer or disable it in a production profile if the API contract is sensitive.

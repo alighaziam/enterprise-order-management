@@ -37,6 +37,7 @@ flowchart LR
 | shipping | Shipment and delivery-address snapshot | Shipping operations; validates confirmed orders through the order API |
 | outbox | Event envelope, relay metadata, inbox deduplication | Append/publish operations |
 | checkout | Durable checkout workflow and orchestration | Checkout API |
+| operations | Operator action audit history | Operator audit query API |
 
 Each module owns its persistence. A module must not query another module's repository or tables. Cross-module calls use the owning module's public API; asynchronous integration uses versioned event envelopes. Spring Modulith verification is part of CI.
 
@@ -118,7 +119,7 @@ Use this query for inspection only. Do not manually mark events published or rep
 - **Resilience:** retries, leases, dead-letter state, idempotency keys, and fulfillment recovery cover selected failure modes.
 - **Maintainability:** module ownership and Spring Modulith checks discourage accidental coupling.
 - **Scalability:** database-backed relay claims can be shared by multiple application instances, but throughput and ordering guarantees have not been benchmarked.
-- **Operability:** the operator desk can page live records, reconcile compensation, and replay dead letters. Alerts and an audit trail of operator actions are not implemented.
+- **Operability:** the operator desk can page live records, reconcile compensation, and replay dead letters. Checkout compensation and dead-letter replay actions are recorded with the authenticated actor, outcome, target, and timestamp; history is searchable through an operations-admin-only API. Alerts and external log/trace correlation remain deployment responsibilities.
 - **Security:** the API is an OAuth2 resource server for WSO2 access tokens and scope checks. No real payment credentials or cardholder data are used. Rate limiting, secret rotation, and a deployment threat-model review remain open.
 
 ## 8. Deliberate non-goals / production gaps
@@ -126,8 +127,7 @@ Use this query for inspection only. Do not manually mark events published or rep
 This repository is a portfolio-grade reference implementation, **not a production-ready commerce platform**. Before production use, address at least:
 
 1. Real PSP/carrier adapters with provider-side outcome reconciliation and security review.
-2. An audit trail for operator reconciliation and dead-letter replay.
-3. Metrics, tracing, alerting, and runbooks for relay lag, retries, DLQ, and saga age.
+2. Metrics, tracing, alerting, and runbooks for relay lag, retries, DLQ, and saga age.
 4. Load, soak, concurrency, and multi-instance failure testing under realistic workload.
 5. Rate limiting, secret rotation, privacy/data-retention review, and deployment hardening.
 
