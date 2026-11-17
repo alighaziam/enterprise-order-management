@@ -20,11 +20,17 @@ public class PaymentGatewayOperationClaimService {
 
     @Transactional
     public List<PaymentGatewayOperationEntity> claimPendingBatch(int batchSize, Instant now) {
-        if (batchSize < 1 || batchSize > 100 || now == null) {
-            throw new IllegalArgumentException("Batch size must be between 1 and 100 and time is required.");
-        }
+        validateBatch(batchSize, now);
         String workerId = UUID.randomUUID().toString();
         repository.claimPendingBatch(workerId, now, now.plusSeconds(LEASE_SECONDS), batchSize);
+        return repository.findByLockedByOrderByCreatedAtAsc(workerId);
+    }
+
+    @Transactional
+    public List<PaymentGatewayOperationEntity> claimUnknownBatch(int batchSize, Instant now) {
+        validateBatch(batchSize, now);
+        String workerId = UUID.randomUUID().toString();
+        repository.claimUnknownBatch(workerId, now, now.plusSeconds(LEASE_SECONDS), batchSize);
         return repository.findByLockedByOrderByCreatedAtAsc(workerId);
     }
 
@@ -59,6 +65,12 @@ public class PaymentGatewayOperationClaimService {
         operation.unknown(error, workerId, now);
         repository.saveAndFlush(operation);
         return true;
+    }
+
+    private static void validateBatch(int batchSize, Instant now) {
+        if (batchSize < 1 || batchSize > 100 || now == null) {
+            throw new IllegalArgumentException("Batch size must be between 1 and 100 and time is required.");
+        }
     }
 
     private PaymentGatewayOperationEntity ownedOperation(UUID id, String workerId, Instant now) {
