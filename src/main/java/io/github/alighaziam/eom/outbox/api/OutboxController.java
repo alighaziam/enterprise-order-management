@@ -1,6 +1,6 @@
 package io.github.alighaziam.eom.outbox.api;
 
-import io.github.alighaziam.eom.operations.application.OperatorAuditService;
+import io.github.alighaziam.eom.operations.OperatorAuditService;
 import io.github.alighaziam.eom.outbox.application.OutboxService;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
