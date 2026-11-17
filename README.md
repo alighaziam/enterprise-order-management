@@ -153,6 +153,7 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Order confirmation/cancellation guards backed by locked payment state and a one-active-payment-per-order constraint
 - [x] Dashboard attention queues and operational counts across filtered result sets
 - [x] Non-root application container with read-only root filesystem and dropped Linux capabilities
+- [x] Operator audit trail for checkout compensation and dead-letter replay, with admin-only searchable history
 
 ## Security and WSO2 integration
 
