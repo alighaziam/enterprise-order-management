@@ -158,6 +158,22 @@ class ApiSecurityTest {
 
 
     @Test
+    void checkoutCompensationAttemptsAreAuditedForOperators() {
+        String workflowId = UUID.randomUUID().toString();
+        RestClientResponseException notFound = assertThrows(RestClientResponseException.class,
+                () -> http.post().uri("/api/v1/checkouts/" + workflowId + "/reconcile")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                        .retrieve().toBodilessEntity());
+        assertEquals(404, notFound.getStatusCode().value());
+
+        String audit = http.get().uri("/api/v1/operations/audit?q=" + workflowId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                .retrieve().body(String.class);
+        assertTrue(audit.contains("CHECKOUT_RECONCILE"));
+        assertTrue(audit.contains("FAILED"));
+    }
+
+    @Test
     void outboxReadScopeCannotReplayDeadLetterEvents() {
         RestClientResponseException forbidden = assertThrows(RestClientResponseException.class,
                 () -> http.post().uri("/api/v1/outbox/events/" + UUID.randomUUID() + "/replay")
