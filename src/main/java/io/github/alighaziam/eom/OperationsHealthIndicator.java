@@ -2,8 +2,8 @@ package io.github.alighaziam.eom;
 
 import io.github.alighaziam.eom.checkout.CheckoutOperations;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
+import io.github.alighaziam.eom.payment.PaymentOperationMonitoring;
 import io.github.alighaziam.eom.payment.PaymentOperationStatus;
-import io.github.alighaziam.eom.payment.application.PaymentOperationMonitoring;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.stereotype.Component;
