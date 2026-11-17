@@ -44,13 +44,37 @@ public interface PaymentGatewayOperationRepository
 
     @Modifying
     @Query(value = """
+            WITH candidates AS (
+                SELECT id
+                FROM payment.gateway_operations
+                WHERE status = 'UNKNOWN'
+                ORDER BY updated_at, created_at
+                FOR UPDATE SKIP LOCKED
+                LIMIT :batchSize
+            )
+            UPDATE payment.gateway_operations AS operation
+               SET status = 'RECONCILING',
+                   locked_by = :workerId,
+                   locked_until = :leaseUntil,
+                   attempts = operation.attempts + 1,
+                   updated_at = :now
+              FROM candidates
+             WHERE operation.id = candidates.id
+            """, nativeQuery = true)
+    int claimUnknownBatch(@Param("workerId") String workerId,
+                          @Param("now") Instant now,
+                          @Param("leaseUntil") Instant leaseUntil,
+                          @Param("batchSize") int batchSize);
+
+    @Modifying
+    @Query(value = """
             UPDATE payment.gateway_operations
                SET status = 'UNKNOWN',
                    locked_by = NULL,
                    locked_until = NULL,
                    last_error = 'Worker lease expired; provider outcome requires reconciliation.',
                    updated_at = :now
-             WHERE status = 'PROCESSING'
+             WHERE status IN ('PROCESSING', 'RECONCILING')
                AND locked_until <= :now
             """, nativeQuery = true)
     int moveExpiredProcessingToUnknown(@Param("now") Instant now);
