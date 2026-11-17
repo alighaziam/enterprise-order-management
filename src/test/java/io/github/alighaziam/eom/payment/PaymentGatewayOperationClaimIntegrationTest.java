@@ -93,6 +93,43 @@ class PaymentGatewayOperationClaimIntegrationTest {
         }
     }
 
+    @Test
+    void unknownOperationCanBeExclusivelyClaimedForReconciliationAndLeaseExpiryReturnsItToUnknown() {
+        Instant now = Instant.now();
+        PaymentIntentEntity payment = createPayment(now);
+        UUID id = UUID.randomUUID();
+        repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
+
+        try {
+            var initialClaim = claims.claimPendingBatch(10, now).stream()
+                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+            assertTrue(claims.markUnknown(id, initialClaim.getLockedBy(),
+                    "provider timed out after request submission", now.plusSeconds(1)));
+
+            var reconciliationClaim = claims.claimUnknownBatch(10, now.plusSeconds(2)).stream()
+                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+            assertEquals(PaymentOperationStatus.RECONCILING, reconciliationClaim.getStatus());
+            assertEquals(2, reconciliationClaim.getAttempts());
+
+            assertFalse(claims.claimUnknownBatch(10, now.plusSeconds(3)).stream()
+                    .anyMatch(item -> item.getId().equals(id)));
+
+            assertEquals(1, claims.recoverExpiredProcessing(now.plusSeconds(123)));
+            var afterExpiredReconciliation = repository.findById(id).orElseThrow();
+            assertEquals(PaymentOperationStatus.UNKNOWN, afterExpiredReconciliation.getStatus());
+            assertNull(afterExpiredReconciliation.getLockedBy());
+            assertNull(afterExpiredReconciliation.getLockedUntil());
+
+            var retryReconciliation = claims.claimUnknownBatch(10, now.plusSeconds(124)).stream()
+                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+            assertEquals(PaymentOperationStatus.RECONCILING, retryReconciliation.getStatus());
+            assertEquals(3, retryReconciliation.getAttempts());
+        } finally {
+            repository.deleteById(id);
+            payments.deleteById(payment.toDomain().id());
+        }
+    }
+
     private PaymentIntentEntity createPayment(Instant now) {
         UUID paymentId = UUID.randomUUID();
         PaymentIntentEntity payment = new PaymentIntentEntity(paymentId, UUID.randomUUID(),
