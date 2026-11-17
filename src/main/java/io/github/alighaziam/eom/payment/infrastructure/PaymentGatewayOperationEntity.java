@@ -127,6 +127,7 @@ public class PaymentGatewayOperationEntity {
         requireLease(workerId, now);
         status = PaymentOperationStatus.UNKNOWN;
         lastError = sanitize(error);
+        nextAttemptAt = now.plusSeconds(reconciliationBackoffSeconds());
         clearLease();
         updatedAt = now;
     }
@@ -138,8 +139,14 @@ public class PaymentGatewayOperationEntity {
         }
         status = PaymentOperationStatus.UNKNOWN;
         lastError = "Worker lease expired; provider outcome requires reconciliation.";
+        nextAttemptAt = now.plusSeconds(reconciliationBackoffSeconds());
         clearLease();
         updatedAt = now;
+    }
+
+    private long reconciliationBackoffSeconds() {
+        int exponent = Math.min(Math.max(attempts - 1, 0), 7);
+        return Math.min(3600L, 30L << exponent);
     }
 
     private void requireLease(String workerId, Instant now) {
