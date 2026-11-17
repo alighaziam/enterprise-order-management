@@ -3,7 +3,7 @@ package io.github.alighaziam.eom.checkout.api;
 import io.github.alighaziam.eom.checkout.CheckoutOperations;
 import io.github.alighaziam.eom.checkout.application.CheckoutNotFoundException;
 import io.github.alighaziam.eom.checkout.application.CheckoutService;
-import io.github.alighaziam.eom.operations.application.OperatorAuditService;
+import io.github.alighaziam.eom.operations.OperatorAuditService;
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.shipping.DeliveryAddress;
 import jakarta.validation.Valid;
