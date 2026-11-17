@@ -56,10 +56,12 @@ class OperatorAuditServiceTest {
     }
 
     @Test
-    void rejectsControlCharactersAndOversizedAuditFields() {
-        assertThrows(IllegalArgumentException.class, () -> new OperatorActionEntity(
+    void sanitizesControlCharactersAndRejectsOversizedAuditFields() {
+        OperatorActionEntity sanitized = new OperatorActionEntity(
                 UUID.randomUUID(), "user", "OUTBOX_REPLAY", "OutboxEvent", "id",
-                "SUCCEEDED", "bad" + (char) 0 + "detail", Instant.now()));
+                "SUCCEEDED", "bad" + (char) 0 + "detail", Instant.now());
+        assertEquals("bad detail", sanitized.getDetail());
+
         assertThrows(IllegalArgumentException.class, () -> new OperatorActionEntity(
                 UUID.randomUUID(), "x".repeat(201), "OUTBOX_REPLAY", "OutboxEvent", "id",
                 "SUCCEEDED", "ok", Instant.now()));
