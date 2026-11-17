@@ -74,7 +74,7 @@ public interface PaymentGatewayOperationRepository
                    locked_by = NULL,
                    locked_until = NULL,
                    last_error = 'Worker lease expired; provider outcome requires reconciliation.',
-                   next_attempt_at = :now + make_interval(secs => LEAST(3600, (30 * power(2, LEAST(attempts - 1, 7)))::integer)),
+                   next_attempt_at = CAST(:now AS timestamptz) + make_interval(secs => LEAST(3600, (30 * power(2, LEAST(attempts - 1, 7)))::integer)),
                    updated_at = :now
              WHERE status IN ('PROCESSING', 'RECONCILING')
                AND locked_until <= :now
