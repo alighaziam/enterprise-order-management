@@ -37,6 +37,7 @@ flowchart LR
 | shipping | Shipment and delivery-address snapshot | Shipping operations; validates confirmed orders through the order API |
 | outbox | Event envelope, relay metadata, inbox deduplication | Append/publish operations |
 | checkout | Durable checkout workflow and orchestration | Checkout API |
+| operations | Operator action audit history | Operator audit query API |
 
 Each module owns its persistence. A module must not query another module's repository or tables. Cross-module calls use the owning module's public API; asynchronous integration uses versioned event envelopes. Spring Modulith verification is part of CI.
 
