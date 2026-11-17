@@ -90,6 +90,7 @@ The payment module uses a provider-neutral adapter contract. The deterministic s
 | POST | /api/v1/checkouts/{id}/reconcile | Retry local compensation for COMPENSATION_REQUIRED |
 | GET | /api/v1/outbox/events | List recent outbox events |
 | POST | /api/v1/outbox/events/{eventId}/replay | Replay a dead-lettered event |
+| GET | /api/v1/operations/audit | Search operator recovery/replay audit history (operations.admin) |
 | GET | /actuator/health | Process health, dead letters, and compensation counts |
 | GET | /swagger-ui.html | OpenAPI UI |
 
