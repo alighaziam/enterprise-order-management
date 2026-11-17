@@ -170,7 +170,7 @@ Required authorities are derived from the JWT `scope` or `scp` claim using Sprin
 | Payments | `payments.read` | `payments.write` |
 | Shipments | `shipping.read` | `shipping.write` |
 | Checkouts | `checkout.read` | `checkout.write` |
-| Checkout reconciliation, outbox replay, management metrics | — | `operations.admin` |
+| Checkout reconciliation, outbox replay, operator audit history, management metrics | — | `operations.admin` |
 | Outbox inspection | `outbox.read` | `operations.admin` |
 
 All unmatched API paths are denied. The bearer-token API uses stateless sessions and does not create server-side HTTP sessions. Missing or invalid tokens return HTTP 401, and a valid token without the required scope returns HTTP 403. Both responses use `application/problem+json`. Only health and info are public actuator endpoints; health details are not exposed. Swagger is left reachable for the local operator experience and has an Authorize action for the same bearer token; restrict it at the ingress layer or disable it in a production profile if the API contract is sensitive.
