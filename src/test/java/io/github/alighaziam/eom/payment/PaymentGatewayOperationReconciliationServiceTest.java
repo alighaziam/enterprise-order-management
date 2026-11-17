@@ -57,9 +57,43 @@ class PaymentGatewayOperationReconciliationServiceTest {
     }
 
     @Test
-    void authoritativeNotFoundNeverResubmitsOrChangesPaymentState() {
+    void successfulAuthorizationWithoutProviderReferenceRemainsUnknown() {
         Instant now = Instant.now();
         UUID paymentId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        PaymentIntentEntity payment = new PaymentIntentEntity(paymentId, orderId,
+                new BigDecimal("12.50"), "EUR", "payment-key-" + paymentId, null, now);
+        PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
+        PaymentGatewayOperationRepository operations = mock(PaymentGatewayOperationRepository.class);
+        PaymentRepository payments = mock(PaymentRepository.class);
+        OutboxOperations outbox = mock(OutboxOperations.class);
+        String workerId = UUID.randomUUID().toString();
+
+        when(operation.ownsLease(workerId, now)).thenReturn(true);
+        when(operation.getPaymentId()).thenReturn(paymentId);
+        when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
+        when(operation.getProviderReference()).thenReturn(null);
+        when(operations.findByIdForUpdate(any())).thenReturn(Optional.of(operation));
+        when(payments.findByIdForUpdate(paymentId)).thenReturn(Optional.of(payment));
+
+        PaymentGatewayOperationReconciliationService service =
+                new PaymentGatewayOperationReconciliationService(operations, payments, outbox);
+        ProviderOperationLookup lookup = new ProviderOperationLookup(
+                ProviderOperationState.SUCCEEDED, null, "APPROVED", now, false);
+
+        assertTrue(service.apply(UUID.randomUUID(), workerId, lookup, now));
+        assertEquals(PaymentStatus.REQUESTED, payment.toDomain().status());
+        verify(operation).unknown(contains("required provider reference is missing"), eq(workerId), eq(now));
+        verify(operation, never()).succeeded(any(), anyString(), any());
+        verify(payments, never()).saveAndFlush(any());
+        verify(outbox, never()).append(anyString(), anyString(), anyString(), anyLong(),
+                anyString(), any(), anyString());
+        verify(operations).saveAndFlush(operation);
+    }
+
+    @Test
+    void authoritativeNotFoundNeverResubmitsOrChangesPaymentState() {
+        Instant now = Instant.now();
         PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
         PaymentGatewayOperationRepository operations = mock(PaymentGatewayOperationRepository.class);
         PaymentRepository payments = mock(PaymentRepository.class);
