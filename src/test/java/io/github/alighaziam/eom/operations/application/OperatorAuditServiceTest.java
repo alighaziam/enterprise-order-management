@@ -4,7 +4,6 @@ import io.github.alighaziam.eom.operations.infrastructure.OperatorActionEntity;
 import io.github.alighaziam.eom.operations.infrastructure.OperatorActionRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
