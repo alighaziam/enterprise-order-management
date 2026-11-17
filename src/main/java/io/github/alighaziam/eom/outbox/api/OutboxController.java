@@ -45,7 +45,11 @@ public class OutboxController {
     }
 
     private static String actor(Authentication authentication) {
-        return authentication == null ? "unknown" : authentication.getName();
+        if (authentication == null || authentication.getName() == null
+                || authentication.getName().isBlank()) {
+            return "unknown";
+        }
+        return authentication.getName();
     }
 
     @ExceptionHandler(OutboxService.OutboxEventNotFoundException.class)
