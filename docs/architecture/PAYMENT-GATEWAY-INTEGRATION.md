@@ -24,6 +24,14 @@ The adapter must:
 - Verify callback/webhook signatures against the raw request body, enforce timestamp/replay protection, and deduplicate provider event IDs before applying state transitions.
 - Keep secrets in deployment secret management; never commit them to `.env.example`.
 
+## Persisted operation foundation
+
+`payment.gateway_operations` now stores operation type, stable idempotency key, request fingerprint, attempt count, scheduling timestamp, provider reference, and a worker lease. Pending work is claimed in bounded batches with `FOR UPDATE SKIP LOCKED`. A worker may finalize an operation only while it owns an unexpired lease.
+
+An expired `PROCESSING` lease is moved to `UNKNOWN`; it is never silently returned to `PENDING`. Unknown operations have a separate, exclusive `RECONCILING` claim path. If a reconciliation worker itself loses its lease, the operation returns to `UNKNOWN` for another provider lookup. This is a claim/state foundation only: there is not yet a scheduled PSP execution or provider-status lookup worker, and the synchronous sandbox `PaymentService` remains unchanged.
+
+The next integration step must add a provider query contract that can look up an operation by its stable idempotency key/reference, then implement the worker so the network lookup happens after the claim transaction has committed. A reconciliation result must be persisted in a separate short transaction. It must not resubmit a financial command merely because its previous result is unknown.
+
 ## Required workflow change before a live PSP
 
 The current `PaymentService` calls the gateway synchronously while holding a database transaction/row lock. This is acceptable for the deterministic local sandbox, but it is not safe for a remote PSP because network latency and unknown outcomes can hold locks and leave local/provider state divergent.
