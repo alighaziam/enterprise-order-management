@@ -1,6 +1,6 @@
 package io.github.alighaziam.eom.operations.api;
 
-import io.github.alighaziam.eom.operations.application.OperatorAuditService;
+import io.github.alighaziam.eom.operations.OperatorAuditService;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
