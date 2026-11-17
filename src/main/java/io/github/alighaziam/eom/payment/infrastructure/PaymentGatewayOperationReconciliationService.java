@@ -63,15 +63,17 @@ public class PaymentGatewayOperationReconciliationService {
             return true;
         }
 
+        String providerReference = lookup.providerReference() != null
+                ? lookup.providerReference() : operation.getProviderReference();
+
         if (lookup.state() == ProviderOperationState.SUCCEEDED) {
-            if (!applySuccessfulPaymentTransition(operation, payment, lookup.providerReference(), now)) {
-                operation.unknown("Provider reports success but local payment state is incompatible; manual investigation is required.",
+            if (!applySuccessfulPaymentTransition(operation, payment, providerReference, now)) {
+                operation.unknown("Provider reports success but local payment state is incompatible or required provider reference is missing; manual investigation is required.",
                         workerId, now);
                 operations.saveAndFlush(operation);
                 return true;
             }
-            operation.succeeded(lookup.providerReference() != null
-                    ? lookup.providerReference() : operation.getProviderReference(), workerId, now);
+            operation.succeeded(providerReference, workerId, now);
             payments.saveAndFlush(payment);
             operations.saveAndFlush(operation);
             appendSuccessEvent(operation, payment);
@@ -119,7 +121,8 @@ public class PaymentGatewayOperationReconciliationService {
         PaymentStatus status = payment.toDomain().status();
         return switch (type) {
             case AUTHORIZE -> {
-                if (status != PaymentStatus.REQUESTED) yield false;
+                if (status != PaymentStatus.REQUESTED
+                        || providerReference == null || providerReference.isBlank()) yield false;
                 payment.authorized(providerReference, now);
                 yield true;
             }
