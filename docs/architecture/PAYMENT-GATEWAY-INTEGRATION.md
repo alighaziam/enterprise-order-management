@@ -26,11 +26,9 @@ The adapter must:
 
 ## Persisted operation foundation
 
-`payment.gateway_operations` now stores operation type, stable idempotency key, request fingerprint, attempt count, scheduling timestamp, provider reference, and a worker lease. Pending work is claimed in bounded batches with `FOR UPDATE SKIP LOCKED`. A worker may finalize an operation only while it owns an unexpired lease.
+`payment.gateway_operations` stores operation type, stable idempotency key, request fingerprint, attempt count, scheduling timestamp, provider reference, and a worker lease. Pending work is claimed in bounded batches with `FOR UPDATE SKIP LOCKED`. A worker may finalize an operation only while it owns an unexpired lease.
 
-An expired `PROCESSING` lease is moved to `UNKNOWN`; it is never silently returned to `PENDING`. Unknown operations have a separate, exclusive `RECONCILING` claim path. If a reconciliation worker itself loses its lease, the operation returns to `UNKNOWN` for another provider lookup. This is a claim/state foundation only: there is not yet a scheduled PSP execution or provider-status lookup worker, and the synchronous sandbox `PaymentService` remains unchanged.
-
-The next integration step must add a provider query contract that can look up an operation by its stable idempotency key/reference, then implement the worker so the network lookup happens after the claim transaction has committed. A reconciliation result must be persisted in a separate short transaction. It must not resubmit a financial command merely because its previous result is unknown.
+An expired `PROCESSING` lease is moved to `UNKNOWN`; it is never silently returned to `PENDING`. Unknown operations have a separate, exclusive `RECONCILING` claim path. If a reconciliation worker itself loses its lease, the operation returns to `UNKNOWN` for another provider lookup. Reconciliation attempts use bounded exponential backoff (30 seconds up to one hour), and the claim query selects only due `UNKNOWN` operations to avoid repeatedly polling a provider at a fixed high rate.
 
 ## Provider reconciliation query contract
 
@@ -40,7 +38,18 @@ The normalized result distinguishes `SUCCEEDED`, `FAILED`, `PENDING`, `NOT_FOUND
 
 A `NOT_FOUND` result is **not** automatically permission to retry. The adapter may mark it authoritative only when the PSP contract guarantees that the key was never accepted. Eventual-consistency gaps, timeouts, connection failures, malformed responses, and inconclusive lookups must remain non-authoritative or `INDETERMINATE`. Any future retry must reuse the original idempotency key and be decided by a separate, tested state transition.
 
-This PR adds only the provider-neutral query port and its validated result model. There is deliberately no PSP implementation, scheduled worker, or automatic retry yet.
+## Reconciliation worker
+
+When (and only when) a `PaymentGatewayReconciliation` provider bean is installed, the scheduled worker:
+1. Claims a bounded batch of `UNKNOWN` operations and commits the `RECONCILING` leases.
+2. Calls the provider's read-only lookup **after** the claim transaction has completed and without holding payment or operation row locks.
+3. Applies the provider observation in a separate short transaction guarded by the same unexpired worker lease.
+4. Atomically updates the operation and corresponding payment state for confirmed success/failure, and emits the existing payment success event through the transactional outbox.
+5. Returns `PENDING`, `INDETERMINATE`, all `NOT_FOUND` outcomes, and lookup exceptions to `UNKNOWN`. Even authoritative `NOT_FOUND` does not trigger a financial resubmission; automatic retry is deliberately not implemented.
+
+If the local payment state is incompatible with a provider-confirmed final result, the operation remains `UNKNOWN` for manual investigation rather than overwriting a potentially newer payment state. A stale worker cannot persist a result after lease expiry.
+
+The worker is dormant in the current repository because no provider lookup adapter is installed. The deterministic sandbox remains the only active payment adapter, and its synchronous behavior is unchanged.
 
 ## Required workflow change before a live PSP
 
@@ -65,4 +74,4 @@ Add provider contract tests for duplicate requests, timeout-after-submit, delaye
 
 ## Readiness boundary
 
-The code now has a provider-neutral port and explicit adapter selection. This makes the application structurally ready for a provider implementation, but does **not** mean a live payment gateway is connected or production payment processing is enabled.
+The code now has a provider-neutral payment command boundary, durable operation and lease state, and a provider-neutral reconciliation contract/worker. This is **not** a live payment gateway connection or production payment processing enablement. The command execution worker, provider-specific adapter, webhook verification, and conversion of checkout/payment flows to split-phase processing are still required before a live PSP can safely be activated.

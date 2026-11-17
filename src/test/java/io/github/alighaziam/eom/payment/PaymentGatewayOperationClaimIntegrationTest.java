@@ -106,21 +106,21 @@ class PaymentGatewayOperationClaimIntegrationTest {
             assertTrue(claims.markUnknown(id, initialClaim.getLockedBy(),
                     "provider timed out after request submission", now.plusSeconds(1)));
 
-            var reconciliationClaim = claims.claimUnknownBatch(10, now.plusSeconds(2)).stream()
+            var reconciliationClaim = claims.claimUnknownBatch(10, now.plusSeconds(32)).stream()
                     .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
             assertEquals(PaymentOperationStatus.RECONCILING, reconciliationClaim.getStatus());
             assertEquals(2, reconciliationClaim.getAttempts());
 
-            assertFalse(claims.claimUnknownBatch(10, now.plusSeconds(3)).stream()
+            assertFalse(claims.claimUnknownBatch(10, now.plusSeconds(33)).stream()
                     .anyMatch(item -> item.getId().equals(id)));
 
-            assertEquals(1, claims.recoverExpiredProcessing(now.plusSeconds(123)));
+            assertEquals(1, claims.recoverExpiredProcessing(now.plusSeconds(153)));
             var afterExpiredReconciliation = repository.findById(id).orElseThrow();
             assertEquals(PaymentOperationStatus.UNKNOWN, afterExpiredReconciliation.getStatus());
             assertNull(afterExpiredReconciliation.getLockedBy());
             assertNull(afterExpiredReconciliation.getLockedUntil());
 
-            var retryReconciliation = claims.claimUnknownBatch(10, now.plusSeconds(124)).stream()
+            var retryReconciliation = claims.claimUnknownBatch(10, now.plusSeconds(214)).stream()
                     .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
             assertEquals(PaymentOperationStatus.RECONCILING, retryReconciliation.getStatus());
             assertEquals(3, retryReconciliation.getAttempts());

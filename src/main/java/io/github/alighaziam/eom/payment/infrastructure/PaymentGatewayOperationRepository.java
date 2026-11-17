@@ -48,7 +48,8 @@ public interface PaymentGatewayOperationRepository
                 SELECT id
                 FROM payment.gateway_operations
                 WHERE status = 'UNKNOWN'
-                ORDER BY updated_at, created_at
+                  AND next_attempt_at <= :now
+                ORDER BY next_attempt_at, updated_at, created_at
                 FOR UPDATE SKIP LOCKED
                 LIMIT :batchSize
             )
@@ -73,6 +74,7 @@ public interface PaymentGatewayOperationRepository
                    locked_by = NULL,
                    locked_until = NULL,
                    last_error = 'Worker lease expired; provider outcome requires reconciliation.',
+                   next_attempt_at = CAST(:now AS timestamptz) + make_interval(secs => LEAST(3600, (30 * power(2, LEAST(attempts - 1, 7)))::integer)),
                    updated_at = :now
              WHERE status IN ('PROCESSING', 'RECONCILING')
                AND locked_until <= :now
