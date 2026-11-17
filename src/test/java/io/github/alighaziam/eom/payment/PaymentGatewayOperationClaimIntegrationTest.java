@@ -130,6 +130,50 @@ class PaymentGatewayOperationClaimIntegrationTest {
         }
     }
 
+    @Test
+    void concurrentWorkersCanClaimAPendingOperationOnlyOnce() throws Exception {
+        Instant now = Instant.now();
+        PaymentIntentEntity payment = createPayment(now);
+        UUID id = UUID.randomUUID();
+        repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
+        var ready = new java.util.concurrent.CountDownLatch(2);
+        var start = new java.util.concurrent.CountDownLatch(1);
+
+        try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> claimAfterBarrier(now, ready, start));
+            var second = executor.submit(() -> claimAfterBarrier(now, ready, start));
+
+            assertTrue(ready.await(10, java.util.concurrent.TimeUnit.SECONDS),
+                    "Both workers should be ready before claiming");
+            start.countDown();
+
+            var firstClaims = first.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            var secondClaims = second.get(15, java.util.concurrent.TimeUnit.SECONDS);
+            long claimsForOperation = java.util.stream.Stream.concat(firstClaims.stream(), secondClaims.stream())
+                    .filter(claimed -> claimed.getId().equals(id)).count();
+
+            assertEquals(1, claimsForOperation,
+                    "A pending gateway operation must be owned by exactly one concurrent worker");
+            var persisted = repository.findById(id).orElseThrow();
+            assertEquals(PaymentOperationStatus.PROCESSING, persisted.getStatus());
+            assertEquals(1, persisted.getAttempts());
+        } finally {
+            repository.deleteById(id);
+            payments.deleteById(payment.toDomain().id());
+        }
+    }
+
+    private java.util.List<PaymentGatewayOperationEntity> claimAfterBarrier(
+            Instant now,
+            java.util.concurrent.CountDownLatch ready,
+            java.util.concurrent.CountDownLatch start) throws Exception {
+        ready.countDown();
+        if (!start.await(10, java.util.concurrent.TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Timed out waiting for concurrent claim start");
+        }
+        return claims.claimPendingBatch(100, now);
+    }
+
     private PaymentIntentEntity createPayment(Instant now) {
         UUID paymentId = UUID.randomUUID();
         PaymentIntentEntity payment = new PaymentIntentEntity(paymentId, UUID.randomUUID(),
