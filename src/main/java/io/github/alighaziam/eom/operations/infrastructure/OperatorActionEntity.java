@@ -41,7 +41,6 @@ public class OperatorActionEntity {
 
     public OperatorActionEntity(UUID id, String actor, String action, String targetType,
                                 String targetId, String outcome, String detail, Instant occurredAt) {
-        this.id = require(actor, 200, "actor");
         this.actor = normalize(actor, 200);
         this.action = normalize(action, 80);
         this.targetType = normalize(targetType, 80);
