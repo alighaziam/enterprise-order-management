@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 class PaymentGatewayReconciliationWorkerTest {
 
     @Test
-    void performsProviderLookupBetweenClaimAndLeaseGuardedResultPersistence() {
+    void recoversExpiredLeasesBeforeClaimingAndPerformsLookupOutsideClaimService() {
         PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
         PaymentGatewayReconciliation gateway = mock(PaymentGatewayReconciliation.class);
         PaymentGatewayOperationReconciliationService results =
@@ -42,6 +42,7 @@ class PaymentGatewayReconciliationWorkerTest {
                 new PaymentGatewayReconciliationWorker(claims, gateway, results);
 
         assertEquals(1, worker.reconcileBatch(Instant.now()));
+        verify(claims).recoverExpiredProcessing(any(Instant.class));
         verify(claims).claimUnknownBatch(eq(20), any(Instant.class));
         verify(gateway).lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null);
         verify(results).apply(eq(operationId), eq(workerId), any(ProviderOperationLookup.class), any(Instant.class));
@@ -49,7 +50,7 @@ class PaymentGatewayReconciliationWorkerTest {
     }
 
     @Test
-    void lookupFailureLeavesOperationUnknownAndNeverSubmitsAnotherFinancialCommand() {
+    void lookupFailureLeavesOperationUnknownAndNeverPersistsExceptionText() {
         PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
         PaymentGatewayReconciliation gateway = mock(PaymentGatewayReconciliation.class);
         PaymentGatewayOperationReconciliationService results =
@@ -64,14 +65,15 @@ class PaymentGatewayReconciliationWorkerTest {
         when(operation.getProviderReference()).thenReturn("provider-ref");
         when(claims.claimUnknownBatch(eq(20), any(Instant.class))).thenReturn(List.of(operation));
         when(gateway.lookup(PaymentOperationType.REFUND, "stable-refund-key", "provider-ref"))
-                .thenThrow(new IllegalStateException("network timeout"));
+                .thenThrow(new IllegalStateException("secret=do-not-persist"));
         when(results.markUnknown(eq(operationId), eq(workerId), anyString(), any(Instant.class))).thenReturn(true);
 
         PaymentGatewayReconciliationWorker worker =
                 new PaymentGatewayReconciliationWorker(claims, gateway, results);
 
         assertEquals(1, worker.reconcileBatch(Instant.now()));
-        verify(results).markUnknown(eq(operationId), eq(workerId), contains("network timeout"), any(Instant.class));
+        verify(results).markUnknown(eq(operationId), eq(workerId),
+                eq("Provider reconciliation lookup failed without a definitive outcome."), any(Instant.class));
         verifyNoMoreInteractions(gateway);
     }
 }
