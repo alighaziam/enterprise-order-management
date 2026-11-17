@@ -28,7 +28,7 @@ The adapter must:
 
 `payment.gateway_operations` stores operation type, stable idempotency key, request fingerprint, attempt count, scheduling timestamp, provider reference, and a worker lease. Pending work is claimed in bounded batches with `FOR UPDATE SKIP LOCKED`. A worker may finalize an operation only while it owns an unexpired lease.
 
-An expired `PROCESSING` lease is moved to `UNKNOWN`; it is never silently returned to `PENDING`. Unknown operations have a separate, exclusive `RECONCILING` claim path. If a reconciliation worker itself loses its lease, the operation returns to `UNKNOWN` for another provider lookup.
+An expired `PROCESSING` lease is moved to `UNKNOWN`; it is never silently returned to `PENDING`. Unknown operations have a separate, exclusive `RECONCILING` claim path. If a reconciliation worker itself loses its lease, the operation returns to `UNKNOWN` for another provider lookup. Reconciliation attempts use bounded exponential backoff (30 seconds up to one hour), and the claim query selects only due `UNKNOWN` operations to avoid repeatedly polling a provider at a fixed high rate.
 
 ## Provider reconciliation query contract
 
