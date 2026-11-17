@@ -74,12 +74,17 @@ public class PaymentGatewayOperationReconciliationService {
                     ? lookup.providerReference() : operation.getProviderReference(), workerId, now);
             payments.saveAndFlush(payment);
             operations.saveAndFlush(operation);
-            appendSuccessEvent(operation, payment, now);
+            appendSuccessEvent(operation, payment);
             return true;
         }
 
         if (lookup.state() == ProviderOperationState.FAILED) {
-            applyFailedPaymentTransition(operation, payment, now);
+            if (!applyFailedPaymentTransition(operation, payment, now)) {
+                operation.unknown("Provider reports failure but local payment state is incompatible; manual investigation is required.",
+                        workerId, now);
+                operations.saveAndFlush(operation);
+                return true;
+            }
             operation.failed("Provider confirmed operation failure: "
                     + (lookup.providerStatusCode() == null ? "unspecified" : lookup.providerStatusCode()),
                     workerId, now);
@@ -136,24 +141,25 @@ public class PaymentGatewayOperationReconciliationService {
         };
     }
 
-    private static void applyFailedPaymentTransition(PaymentGatewayOperationEntity operation,
-                                                      PaymentIntentEntity payment, Instant now) {
+    private static boolean applyFailedPaymentTransition(PaymentGatewayOperationEntity operation,
+                                                         PaymentIntentEntity payment, Instant now) {
         PaymentStatus status = payment.toDomain().status();
-        switch (operation.getOperationType()) {
+        return switch (operation.getOperationType()) {
             case AUTHORIZE -> {
-                if (status == PaymentStatus.REQUESTED) payment.status(PaymentStatus.FAILED, now);
+                if (status != PaymentStatus.REQUESTED) yield false;
+                payment.status(PaymentStatus.FAILED, now);
+                yield true;
             }
+            case CAPTURE, VOID -> status == PaymentStatus.AUTHORIZED;
             case REFUND -> {
-                if (status == PaymentStatus.REFUND_PENDING) payment.status(PaymentStatus.CAPTURED, now);
+                if (status != PaymentStatus.REFUND_PENDING) yield false;
+                payment.status(PaymentStatus.CAPTURED, now);
+                yield true;
             }
-            case CAPTURE, VOID -> {
-                // A failed capture/void leaves the previously authorized payment unchanged.
-            }
-        }
+        };
     }
 
-    private void appendSuccessEvent(PaymentGatewayOperationEntity operation,
-                                    PaymentIntentEntity payment, Instant now) {
+    private void appendSuccessEvent(PaymentGatewayOperationEntity operation, PaymentIntentEntity payment) {
         String eventType;
         long version;
         switch (operation.getOperationType()) {
