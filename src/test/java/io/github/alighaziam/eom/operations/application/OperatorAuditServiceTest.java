@@ -5,6 +5,7 @@ import io.github.alighaziam.eom.operations.infrastructure.OperatorActionEntity;
 import io.github.alighaziam.eom.operations.infrastructure.OperatorActionRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 
 import java.time.Instant;
@@ -46,11 +47,11 @@ class OperatorAuditServiceTest {
     void capsPageSizeAndReturnsNewestAuditEntries() {
         OperatorActionRepository repository = mock(OperatorActionRepository.class);
         OperatorAuditService service = new OperatorAuditService(repository);
-        when(repository.search(isNull(), isNull(), any())).thenReturn(new PageImpl<>(List.of()));
+        when(repository.search(isNull(), isNull(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
 
         service.search(null, null, -1, 500);
 
-        verify(repository).search(isNull(), isNull(), argThat(page ->
+        verify(repository).search(isNull(), isNull(), argThat((Pageable page) ->
                 page.getPageNumber() == 0 && page.getPageSize() == 100
                         && page.getSort().getOrderFor("occurredAt").getDirection() == Sort.Direction.DESC));
     }
