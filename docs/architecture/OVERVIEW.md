@@ -126,8 +126,7 @@ Use this query for inspection only. Do not manually mark events published or rep
 This repository is a portfolio-grade reference implementation, **not a production-ready commerce platform**. Before production use, address at least:
 
 1. Real PSP/carrier adapters with provider-side outcome reconciliation and security review.
-2. An audit trail for operator reconciliation and dead-letter replay.
-3. Metrics, tracing, alerting, and runbooks for relay lag, retries, DLQ, and saga age.
+2. Metrics, tracing, alerting, and runbooks for relay lag, retries, DLQ, and saga age.
 4. Load, soak, concurrency, and multi-instance failure testing under realistic workload.
 5. Rate limiting, secret rotation, privacy/data-retention review, and deployment hardening.
 
