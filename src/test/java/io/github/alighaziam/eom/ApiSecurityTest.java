@@ -147,6 +147,13 @@ class ApiSecurityTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
                         .retrieve().toBodilessEntity());
         assertEquals(404, notFound.getStatusCode().value());
+
+        String audit = http.get().uri("/api/v1/operations/audit?q=" + eventId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                .retrieve().body(String.class);
+        assertTrue(audit.contains("OUTBOX_REPLAY"));
+        assertTrue(audit.contains("FAILED"));
+        assertTrue(audit.contains("security-test"));
     }
 
 
