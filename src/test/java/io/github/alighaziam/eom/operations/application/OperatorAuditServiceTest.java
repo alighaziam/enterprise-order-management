@@ -1,7 +1,6 @@
 package io.github.alighaziam.eom.operations.application;
 
 import io.github.alighaziam.eom.operations.OperatorAuditService;
-
 import io.github.alighaziam.eom.operations.infrastructure.OperatorActionEntity;
 import io.github.alighaziam.eom.operations.infrastructure.OperatorActionRepository;
 import org.junit.jupiter.api.Test;
@@ -23,7 +22,7 @@ class OperatorAuditServiceTest {
         OperatorActionRepository repository = mock(OperatorActionRepository.class);
         OperatorAuditService service = new OperatorAuditService(repository);
 
-        service.record("ops-user\\nforged", "OUTBOX_REPLAY", "OutboxEvent",
+        service.record("ops-user" + (char) 10 + "forged", "OUTBOX_REPLAY", "OutboxEvent",
                 UUID.randomUUID().toString(), "SUCCEEDED", "Dead letter requeued.");
 
         var captor = org.mockito.ArgumentCaptor.forClass(OperatorActionEntity.class);
@@ -60,7 +59,7 @@ class OperatorAuditServiceTest {
     void rejectsControlCharactersAndOversizedAuditFields() {
         assertThrows(IllegalArgumentException.class, () -> new OperatorActionEntity(
                 UUID.randomUUID(), "user", "OUTBOX_REPLAY", "OutboxEvent", "id",
-                "SUCCEEDED", "bad\\u0000detail", Instant.now()));
+                "SUCCEEDED", "bad" + (char) 0 + "detail", Instant.now()));
         assertThrows(IllegalArgumentException.class, () -> new OperatorActionEntity(
                 UUID.randomUUID(), "x".repeat(201), "OUTBOX_REPLAY", "OutboxEvent", "id",
                 "SUCCEEDED", "ok", Instant.now()));
