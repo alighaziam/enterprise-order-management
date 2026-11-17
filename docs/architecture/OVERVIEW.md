@@ -118,7 +118,7 @@ Use this query for inspection only. Do not manually mark events published or rep
 - **Resilience:** retries, leases, dead-letter state, idempotency keys, and fulfillment recovery cover selected failure modes.
 - **Maintainability:** module ownership and Spring Modulith checks discourage accidental coupling.
 - **Scalability:** database-backed relay claims can be shared by multiple application instances, but throughput and ordering guarantees have not been benchmarked.
-- **Operability:** the operator desk can page live records, reconcile compensation, and replay dead letters. Alerts and an audit trail of operator actions are not implemented.
+- **Operability:** the operator desk can page live records, reconcile compensation, and replay dead letters. Checkout compensation and dead-letter replay actions are recorded with the authenticated actor, outcome, target, and timestamp; history is searchable through an operations-admin-only API. Alerts and external log/trace correlation remain deployment responsibilities.
 - **Security:** the API is an OAuth2 resource server for WSO2 access tokens and scope checks. No real payment credentials or cardholder data are used. Rate limiting, secret rotation, and a deployment threat-model review remain open.
 
 ## 8. Deliberate non-goals / production gaps
