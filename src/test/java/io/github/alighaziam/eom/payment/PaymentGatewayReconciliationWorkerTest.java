@@ -72,6 +72,7 @@ class PaymentGatewayReconciliationWorkerTest {
                 new PaymentGatewayReconciliationWorker(claims, gateway, results);
 
         assertEquals(1, worker.reconcileBatch(Instant.now()));
+        verify(gateway).lookup(PaymentOperationType.REFUND, "stable-refund-key", "provider-ref");
         verify(results).markUnknown(eq(operationId), eq(workerId),
                 eq("Provider reconciliation lookup failed without a definitive outcome."), any(Instant.class));
         verifyNoMoreInteractions(gateway);
