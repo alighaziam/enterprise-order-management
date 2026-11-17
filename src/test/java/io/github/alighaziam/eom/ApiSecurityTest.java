@@ -130,7 +130,7 @@ class ApiSecurityTest {
         String audit = http.get().uri("/api/v1/operations/audit")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
                 .retrieve().body(String.class);
-        assertTrue(audit.contains("\\"content\\":"));
+        assertTrue(audit.contains("\"content\":"));
     }
 
     @Test
