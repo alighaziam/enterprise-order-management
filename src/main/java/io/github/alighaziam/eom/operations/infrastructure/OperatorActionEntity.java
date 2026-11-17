@@ -56,13 +56,6 @@ public class OperatorActionEntity {
         this.id = id;
     }
 
-    private static String require(String value, int max, String field) {
-        if (value == null || value.isBlank() || value.trim().length() > max) {
-            throw new IllegalArgumentException("A valid " + field + " is required.");
-        }
-        return value;
-    }
-
     private static String normalize(String value, int max) {
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException("Audit fields cannot be blank.");
