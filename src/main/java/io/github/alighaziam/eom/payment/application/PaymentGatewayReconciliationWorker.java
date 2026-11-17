@@ -38,6 +38,8 @@ public class PaymentGatewayReconciliationWorker {
     }
 
     public int reconcileBatch(Instant now) {
+        // Recover abandoned PROCESSING/RECONCILING leases before claiming UNKNOWN work.
+        claims.recoverExpiredProcessing(now);
         List<PaymentGatewayOperationEntity> batch = claims.claimUnknownBatch(BATCH_SIZE, now);
         int completed = 0;
         for (PaymentGatewayOperationEntity operation : batch) {
@@ -48,11 +50,9 @@ public class PaymentGatewayReconciliationWorker {
                     completed++;
                 }
             } catch (RuntimeException lookupFailure) {
-                String message = lookupFailure.getMessage();
-                String safeMessage = message == null || message.isBlank()
-                        ? "Provider reconciliation lookup failed without a definitive outcome."
-                        : "Provider reconciliation lookup failed: " + message;
-                if (results.markUnknown(operation.getId(), operation.getLockedBy(), safeMessage, Instant.now())) {
+                // Never persist provider exception text: it may contain credentials or raw response data.
+                if (results.markUnknown(operation.getId(), operation.getLockedBy(),
+                        "Provider reconciliation lookup failed without a definitive outcome.", Instant.now())) {
                     completed++;
                 }
             }
