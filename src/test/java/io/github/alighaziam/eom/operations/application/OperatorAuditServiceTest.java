@@ -1,5 +1,7 @@
 package io.github.alighaziam.eom.operations.application;
 
+import io.github.alighaziam.eom.operations.OperatorAuditService;
+
 import io.github.alighaziam.eom.operations.infrastructure.OperatorActionEntity;
 import io.github.alighaziam.eom.operations.infrastructure.OperatorActionRepository;
 import org.junit.jupiter.api.Test;
