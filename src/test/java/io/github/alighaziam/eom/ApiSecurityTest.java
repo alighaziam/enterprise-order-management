@@ -120,6 +120,20 @@ class ApiSecurityTest {
     }
 
     @Test
+    void operatorAuditHistoryRequiresOperationsAdminScope() {
+        RestClientResponseException forbidden = assertThrows(RestClientResponseException.class,
+                () -> http.get().uri("/api/v1/operations/audit")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer customers-token")
+                        .retrieve().toBodilessEntity());
+        assertEquals(403, forbidden.getStatusCode().value());
+
+        String audit = http.get().uri("/api/v1/operations/audit")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer operations-token")
+                .retrieve().body(String.class);
+        assertTrue(audit.contains("\\"content\\":"));
+    }
+
+    @Test
     void outboxReplayRequiresOperationsAdminScope() {
         String eventId = UUID.randomUUID().toString();
         RestClientResponseException forbidden = assertThrows(RestClientResponseException.class,
