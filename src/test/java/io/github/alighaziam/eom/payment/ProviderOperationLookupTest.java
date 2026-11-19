@@ -44,6 +44,16 @@ class ProviderOperationLookupTest {
     }
 
     @Test
+    void rejectsProviderMetadataThatCouldContainHeadersOrRawResponseText() {
+        assertThrows(IllegalArgumentException.class, () -> new ProviderOperationLookup(
+                ProviderOperationState.SUCCEEDED, "ref?access_token=secret", "APPROVED", observedAt, false));
+        assertThrows(IllegalArgumentException.class, () -> new ProviderOperationLookup(
+                ProviderOperationState.FAILED, null, "Bearer secret-token", observedAt, false));
+        assertThrows(IllegalArgumentException.class, () -> new ProviderOperationLookup(
+                ProviderOperationState.SUCCEEDED, "provider reference with spaces", "APPROVED", observedAt, false));
+    }
+
+    @Test
     void requiresAnObservedStateAndTimestamp() {
         assertThrows(IllegalArgumentException.class, () -> new ProviderOperationLookup(
                 null, null, null, observedAt, false));
