@@ -24,21 +24,17 @@ public record ProviderOperationLookup(
             throw new IllegalArgumentException("Provider lookup state and observation time are required.");
         }
         if (providerReference != null
-                && (providerReference.isBlank() || providerReference.length() > 120
-                    || containsControlCharacter(providerReference))) {
-            throw new IllegalArgumentException("Provider reference must be a safe value of at most 120 characters.");
+                && !providerReference.matches("[A-Za-z0-9][A-Za-z0-9._:-]{0,119}")) {
+            throw new IllegalArgumentException(
+                    "Provider reference must be a safe identifier token of at most 120 characters.");
         }
         if (providerStatusCode != null
-                && (providerStatusCode.isBlank() || providerStatusCode.length() > 80
-                    || containsControlCharacter(providerStatusCode))) {
-            throw new IllegalArgumentException("Provider status code must be a safe value of at most 80 characters.");
+                && !providerStatusCode.matches("[A-Za-z0-9][A-Za-z0-9._:-]{0,79}")) {
+            throw new IllegalArgumentException(
+                    "Provider status code must be a safe identifier token of at most 80 characters.");
         }
         if (authoritativeNotFound && state != ProviderOperationState.NOT_FOUND) {
             throw new IllegalArgumentException("Only a NOT_FOUND result can be authoritative not-found.");
         }
-    }
-
-    private static boolean containsControlCharacter(String value) {
-        return value.chars().anyMatch(Character::isISOControl);
     }
 }
