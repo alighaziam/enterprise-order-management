@@ -1,0 +1,42 @@
+# Standardized Progress Assessment
+
+- Assessment date: 2026-11-19
+- Baseline commit: `05d75fdd` on `main`
+- Status: evidence-based baseline; category ratings are reviewer scores against the rubric below, not raw GitHub counters.
+- Overall weighted score: **84.95%**
+
+## Scoring rubric
+
+| Dimension | Weight | Score | Weighted contribution |
+|---|---:|---:|---:|
+| Product capabilities (40%) | 88% | 35.20 |
+| Tests and code quality (20%) | 90% | 18.00 |
+| CI/CD and build (15%) | 100% | 15.00 |
+| Security (10%) | 80% | 8.00 |
+| Documentation (5%) | 85% | 4.25 |
+| Deployment / production readiness (10%) | 45% | 4.50 |
+| **Total** | **100%** | — | **84.95%** |
+
+Formula: overall progress = sum(category score × category weight). A category score is based on implemented scope and its verification evidence. Documentation alone does not count as implementation. A green workflow proves only the checks included in that workflow; it does not prove production readiness.
+
+## Evidence checked
+
+README documents eight modules, transactional outbox/inbox, checkout compensation, idempotency, Kafka option, health/metrics and Compose. It explicitly states payment and carrier integrations are sandbox-only. Latest CI + CodeQL passed 2026-11-19.
+
+- Latest CI/build evidence: https://github.com/alighaziam/enterprise-order-management/actions/runs/44492414939
+- Latest CodeQL/security workflow evidence: https://github.com/alighaziam/enterprise-order-management/actions/runs/44492414629
+
+## Remaining release gates
+
+Replace deterministic payment and carrier sandboxes with real provider adapters; complete split-phase PSP workflow and outcome reconciliation; validate deployment, observability, recovery and performance against production-like infrastructure.
+
+## Rules for future updates
+
+1. Recalculate the same six dimensions with the same weights; do not change the denominator between reports.
+2. Mark a capability complete only when implementation exists and the relevant automated test or reproducible manual check passes.
+3. Treat missing, skipped, or unavailable checks as unverified, never as passed.
+4. Keep production-only integrations, external services, deployment validation and manual QA separate from local mocks/sandboxes.
+5. Record the assessed commit SHA and link the exact workflow run used as evidence.
+6. Update this file when evidence changes; do not infer progress from commit count.
+
+This is a consistent engineering assessment baseline, not a claim that a single objectively exact percentage exists independent of the scoring rubric.
