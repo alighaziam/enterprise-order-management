@@ -1,7 +1,7 @@
 # Standardized Progress Assessment
 
 - Assessment date: 2026-11-19
-- Baseline commit: `05d75fdd` on `main`
+- Baseline commit: `54dfc5cc68c5c76f9d91c88c43f141bde10b835a` on `main`
 - Status: evidence-based baseline; category ratings are reviewer scores against the rubric below, not raw GitHub counters.
 - Overall weighted score: **84.95%**
 
@@ -23,8 +23,8 @@ Formula: overall progress = sum(category score × category weight). A category s
 
 README documents eight modules, transactional outbox/inbox, checkout compensation, idempotency, Kafka option, health/metrics and Compose. It explicitly states payment and carrier integrations are sandbox-only. Latest CI + CodeQL passed 2026-11-19.
 
-- Latest CI/build evidence: https://github.com/alighaziam/enterprise-order-management/actions/runs/44492414939
-- Latest CodeQL/security workflow evidence: https://github.com/alighaziam/enterprise-order-management/actions/runs/44492414629
+- Latest CI/build evidence: https://github.com/alighaziam/enterprise-order-management/actions/runs/44570747559
+- Latest CodeQL/security workflow evidence: https://github.com/alighaziam/enterprise-order-management/actions/runs/44570747516
 
 ## Remaining release gates
 
@@ -40,3 +40,4 @@ Replace deterministic payment and carrier sandboxes with real provider adapters;
 6. Update this file when evidence changes; do not infer progress from commit count.
 
 This is a consistent engineering assessment baseline, not a claim that a single objectively exact percentage exists independent of the scoring rubric.
+\n\n## Latest merged increment — 19 November 2026\n\nProvider references and status codes now accept only bounded safe identifier tokens, preventing free-form/header-like metadata from entering reconciliation records; PR #41 CI and CodeQL passed.\n
