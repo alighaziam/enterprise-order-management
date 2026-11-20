@@ -5,17 +5,13 @@ import java.util.UUID;
 
 /**
  * Provider boundary for payment authorization and lifecycle operations.
- *
- * Implementations must propagate the stable idempotency key to the PSP and
- * must never treat a timeout as a definitive decline. The current service
- * invokes this synchronous contract from a transaction and is therefore
- * suitable for the deterministic sandbox only. A remote PSP adapter must
- * not be enabled until the payment workflow is changed to persisted,
- * split-phase commands with asynchronous outcome reconciliation.
+ * Every mutating call must pass its stable persisted idempotency key through
+ * to the PSP. Implementations must never treat a timeout as a definitive decline.
+ * The deterministic sandbox is the only configured implementation today.
  */
 public interface PaymentGateway {
     String authorize(UUID paymentId, BigDecimal amount, String currency, String idempotencyKey);
-    void capture(String reference);
-    void voidAuthorization(String reference);
-    void refund(String reference);
+    void capture(String reference, String idempotencyKey);
+    void voidAuthorization(String reference, String idempotencyKey);
+    void refund(String reference, String idempotencyKey);
 }

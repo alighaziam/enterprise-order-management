@@ -51,6 +51,10 @@ If the local payment state is incompatible with a provider-confirmed final resul
 
 The worker is dormant in the current repository because no provider lookup adapter is installed. The deterministic sandbox remains the only active payment adapter, and its synchronous behavior is unchanged.
 
+## Provider mutation idempotency contract
+
+Every mutating gateway operation now requires a stable idempotency key, not only authorization. The command worker passes the exact key persisted on the operation for capture, void, and refund as well. The legacy synchronous sandbox path derives deterministic keys from payment ID and operation type. A production adapter must transmit these keys to the provider unchanged and prove duplicate submission behavior with provider contract tests.
+
 ## PaymentService split-phase orchestration
 
 The opt-in `app.payment.command-execution.enabled=true` flag now switches all four PaymentService lifecycle entry points to persisted commands:

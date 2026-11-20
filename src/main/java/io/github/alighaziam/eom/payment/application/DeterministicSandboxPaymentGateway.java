@@ -13,29 +13,38 @@ public class DeterministicSandboxPaymentGateway implements SandboxPaymentGateway
     @Override
     public String authorize(UUID paymentId, BigDecimal amount, String currency, String idempotencyKey) {
         if (paymentId == null || amount == null || amount.signum() <= 0
-                || currency == null || !currency.matches("[A-Z]{3}")
-                || idempotencyKey == null || idempotencyKey.isBlank() || idempotencyKey.length() > 120) {
+                || currency == null || !currency.matches("[A-Z]{3}")) {
             throw new IllegalArgumentException("Invalid sandbox payment request.");
         }
+        validateIdempotencyKey(idempotencyKey);
         return "sandbox-" + paymentId;
     }
 
     @Override
-    public void capture(String reference) {
+    public void capture(String reference, String idempotencyKey) {
         check(reference);
+        validateIdempotencyKey(idempotencyKey);
     }
 
     @Override
-    public void voidAuthorization(String reference) {
+    public void voidAuthorization(String reference, String idempotencyKey) {
         check(reference);
+        validateIdempotencyKey(idempotencyKey);
     }
 
     @Override
-    public void refund(String reference) {
+    public void refund(String reference, String idempotencyKey) {
         check(reference);
+        validateIdempotencyKey(idempotencyKey);
     }
 
-    private void check(String reference) {
+    private static void validateIdempotencyKey(String key) {
+        if (key == null || key.isBlank() || key.length() > 120) {
+            throw new IllegalArgumentException("A stable payment operation idempotency key is required.");
+        }
+    }
+
+    private static void check(String reference) {
         if (reference == null || !reference.startsWith("sandbox-")) {
             throw new IllegalArgumentException("Unknown sandbox payment reference.");
         }

@@ -72,9 +72,9 @@ class PaymentGatewayCommandExecutionWorkerTest {
         claimOrder.verify(claims).recoverExpiredProcessing(now);
         claimOrder.verify(claims).claimPendingBatch(20, now);
         verify(gateway).authorize(authorizePaymentId, amount, "EUR", "authorize-key");
-        verify(gateway).capture("provider-ref-capture");
-        verify(gateway).voidAuthorization("provider-ref-void");
-        verify(gateway).refund("provider-ref-refund");
+        verify(gateway).capture("provider-ref-capture", "capture-key");
+        verify(gateway).voidAuthorization("provider-ref-void", "void-key");
+        verify(gateway).refund("provider-ref-refund", "refund-key");
         verify(results, times(4)).apply(any(), anyString(), any(ProviderOperationLookup.class), any(Instant.class));
         verifyNoMoreInteractions(gateway);
     }

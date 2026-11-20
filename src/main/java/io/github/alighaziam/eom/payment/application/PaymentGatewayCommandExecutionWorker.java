@@ -115,15 +115,15 @@ public class PaymentGatewayCommandExecutionWorker {
             case AUTHORIZE -> gateway.authorize(payment.id(), payment.amount(), payment.currency(),
                     operation.getIdempotencyKey());
             case CAPTURE -> {
-                gateway.capture(payment.providerReference());
+                gateway.capture(payment.providerReference(), operation.getIdempotencyKey());
                 yield null;
             }
             case VOID -> {
-                gateway.voidAuthorization(payment.providerReference());
+                gateway.voidAuthorization(payment.providerReference(), operation.getIdempotencyKey());
                 yield null;
             }
             case REFUND -> {
-                gateway.refund(payment.providerReference());
+                gateway.refund(payment.providerReference(), operation.getIdempotencyKey());
                 yield null;
             }
         };
