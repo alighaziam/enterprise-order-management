@@ -4,6 +4,7 @@ import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
 import io.github.alighaziam.eom.payment.PaymentIntent;
+import io.github.alighaziam.eom.payment.PaymentOperationView;
 import io.github.alighaziam.eom.payment.PaymentOperationStatus;
 import io.github.alighaziam.eom.payment.PaymentOperationType;
 import io.github.alighaziam.eom.payment.PaymentOperations;
@@ -205,6 +206,22 @@ public class PaymentService implements PaymentOperations {
     @Transactional(readOnly = true)
     public PaymentIntent get(UUID id) {
         return find(id).toDomain();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentOperationView> operations(UUID paymentId) {
+        find(paymentId); // Preserve the payment resource's 404 semantics.
+        return gatewayOperations.findByPaymentIdOrderByCreatedAtAsc(paymentId).stream()
+                .map(operation -> new PaymentOperationView(
+                        operation.getId(),
+                        operation.getOperationType(),
+                        operation.getStatus(),
+                        operation.getAttempts(),
+                        operation.getNextAttemptAt(),
+                        operation.getCreatedAt(),
+                        operation.getUpdatedAt(),
+                        operation.getCompletedAt()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

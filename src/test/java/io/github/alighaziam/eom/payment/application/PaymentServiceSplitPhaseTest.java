@@ -166,6 +166,39 @@ class PaymentServiceSplitPhaseTest {
         verifyNoInteractions(gateway, outbox);
     }
 
+
+    @Test
+    void operationStatusViewExposesProgressWithoutProviderSecrets() {
+        UUID paymentId = UUID.randomUUID();
+        Instant now = Instant.now();
+        PaymentIntentEntity payment = new PaymentIntentEntity(paymentId, UUID.randomUUID(),
+                new BigDecimal("27.40"), "EUR", "payment-" + paymentId, null, now);
+        PaymentGatewayOperationEntity operation = new PaymentGatewayOperationEntity(
+                UUID.randomUUID(), paymentId, PaymentOperationType.AUTHORIZE,
+                "secret-idempotency-key", "a".repeat(64), now);
+        when(payments.findById(paymentId)).thenReturn(Optional.of(payment));
+        when(operations.findByPaymentIdOrderByCreatedAtAsc(paymentId)).thenReturn(java.util.List.of(operation));
+
+        var result = service.operations(paymentId);
+
+        assertEquals(1, result.size());
+        assertEquals(operation.getId(), result.getFirst().id());
+        assertEquals(PaymentOperationType.AUTHORIZE, result.getFirst().type());
+        assertEquals(PaymentOperationStatus.PENDING, result.getFirst().status());
+        assertEquals(0, result.getFirst().attempts());
+        assertNull(result.getFirst().completedAt());
+        verify(operations).findByPaymentIdOrderByCreatedAtAsc(paymentId);
+    }
+
+    @Test
+    void operationStatusViewReturnsNotFoundForUnknownPayment() {
+        UUID paymentId = UUID.randomUUID();
+        when(payments.findById(paymentId)).thenReturn(Optional.empty());
+
+        assertThrows(PaymentNotFoundException.class, () -> service.operations(paymentId));
+        verifyNoInteractions(operations);
+    }
+
     private static PaymentIntentEntity authorizedPayment(UUID id, Instant now) {
         PaymentIntentEntity entity = new PaymentIntentEntity(id, UUID.randomUUID(),
                 new BigDecimal("27.40"), "EUR", "payment-" + id, null, now);
