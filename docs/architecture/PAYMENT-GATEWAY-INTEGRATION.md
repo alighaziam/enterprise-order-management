@@ -89,7 +89,7 @@ The orchestration boundary is implemented, but this repository is **not producti
 3. Add signed webhook verification, timestamp/replay protection, deduplication and amount/currency/merchant matching.
 4. Add provider contract tests for duplicate requests, timeout-after-submit, delayed/out-of-order webhooks, invalid signatures, duplicate delivery, amount/currency mismatch, capture/void/refund replay, and process restart recovery.
 5. Validate provider-specific idempotency retention, rate limits, error mapping, reconciliation behavior, operational alerts and disaster recovery in a production-like environment.
-6. Enforce mutual exclusion for different unresolved operations on the same payment. PR #50 adds the row-lock-serialized guard and PostgreSQL integration coverage for CAPTURE/VOID conflicts; treat it as verified only after CI and CodeQL pass on the final PR head.
+6. Enforce mutual exclusion for different unresolved operations on the same payment. PR #50 merged with a row-lock-serialized guard and PostgreSQL integration coverage for both CAPTURE/VOID conflict directions; CI and CodeQL passed on the exact merged PR head.
 
 ## Configuration and activation
 
