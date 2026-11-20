@@ -65,7 +65,7 @@ public class PaymentGatewayCommandExecutionWorker {
                         .map(entity -> entity.toDomain())
                         .orElse(null);
                 if (payment == null) {
-                    if (results.markUnknown(operation.getId(), workerId,
+                    if (results.rejectBeforeSubmission(operation.getId(), workerId,
                             "Payment intent is missing; provider command was not submitted.", Instant.now())) {
                         completed++;
                     }
@@ -74,7 +74,7 @@ public class PaymentGatewayCommandExecutionWorker {
 
                 String preconditionFailure = preconditionFailure(operation, payment);
                 if (preconditionFailure != null) {
-                    if (results.markUnknown(operation.getId(), workerId, preconditionFailure, Instant.now())) {
+                    if (results.rejectBeforeSubmission(operation.getId(), workerId, preconditionFailure, Instant.now())) {
                         completed++;
                     }
                     continue;
