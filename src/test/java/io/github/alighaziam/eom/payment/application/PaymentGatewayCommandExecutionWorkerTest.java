@@ -50,11 +50,14 @@ class PaymentGatewayCommandExecutionWorkerTest {
                 operation(capturePaymentId, PaymentOperationType.CAPTURE, "capture-key"),
                 operation(voidPaymentId, PaymentOperationType.VOID, "void-key"),
                 operation(refundPaymentId, PaymentOperationType.REFUND, "refund-key"));
+        Map<UUID, PaymentIntentEntity> paymentEntities = Map.of(
+                authorizePaymentId, mockPaymentEntity(snapshots.get(authorizePaymentId)),
+                capturePaymentId, mockPaymentEntity(snapshots.get(capturePaymentId)),
+                voidPaymentId, mockPaymentEntity(snapshots.get(voidPaymentId)),
+                refundPaymentId, mockPaymentEntity(snapshots.get(refundPaymentId)));
         when(claims.claimPendingBatch(20, now)).thenReturn(operations);
-        when(payments.findById(any())).thenAnswer(invocation -> {
-            UUID requestedId = invocation.getArgument(0);
-            return Optional.of(mockPaymentEntity(snapshots.get(requestedId)));
-        });
+        when(payments.findById(any())).thenAnswer(invocation ->
+                Optional.ofNullable(paymentEntities.get(invocation.getArgument(0))));
         when(gateway.authorize(authorizePaymentId, amount, "EUR", "authorize-key"))
                 .thenReturn("provider-auth-456");
         when(results.apply(any(), anyString(), any(ProviderOperationLookup.class), any(Instant.class)))
