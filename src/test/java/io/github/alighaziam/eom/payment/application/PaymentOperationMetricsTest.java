@@ -11,12 +11,13 @@ import static org.mockito.Mockito.*;
 class PaymentOperationMetricsTest {
 
     @Test
-    void registersBoundedCountAndAgeGaugesForPaymentOperationStatuses() {
+    void registersBoundedCountAgeAndExpiredLeaseGauges() {
         PaymentOperationMonitoring monitoring = mock(PaymentOperationMonitoring.class);
         when(monitoring.count(PaymentOperationStatus.UNKNOWN)).thenReturn(3L);
         when(monitoring.count(PaymentOperationStatus.PENDING)).thenReturn(7L);
         when(monitoring.oldestAgeSeconds(PaymentOperationStatus.PENDING)).thenReturn(420L);
         when(monitoring.oldestAgeSeconds(PaymentOperationStatus.UNKNOWN)).thenReturn(90L);
+        when(monitoring.expiredLeaseCount()).thenReturn(2L);
 
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         try {
@@ -33,8 +34,11 @@ class PaymentOperationMetricsTest {
                     .tag("status", "pending").gauge().value());
             assertEquals(90.0, registry.get(PaymentOperationMetrics.OLDEST_AGE_METRIC)
                     .tag("status", "unknown").gauge().value());
+            assertEquals(2.0, registry.get(PaymentOperationMetrics.EXPIRED_LEASES_METRIC)
+                    .gauge().value());
             verify(monitoring).count(PaymentOperationStatus.UNKNOWN);
             verify(monitoring).count(PaymentOperationStatus.PENDING);
+            verify(monitoring).expiredLeaseCount();
         } finally {
             registry.close();
         }
