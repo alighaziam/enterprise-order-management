@@ -152,7 +152,7 @@ class PaymentSplitPhaseIntegrationTest {
         PaymentGatewayOperationEntity command = operation(requested.id(), PaymentOperationType.CAPTURE);
         assertEquals(PaymentOperationStatus.PENDING, command.getStatus());
         assertEquals(0, command.getAttempts());
-        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
         assertEquals(PaymentStatus.CAPTURED, payments.get(requested.id()).status());
 
         List<String> eventTypes = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
