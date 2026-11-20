@@ -37,7 +37,6 @@ class PaymentGatewayOperationReconciliationServiceTest {
         when(operation.ownsLease(workerId, now)).thenReturn(true);
         when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(1));
         when(operation.getPaymentId()).thenReturn(paymentId);
-        when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(1));
         when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
         when(operation.getProviderReference()).thenReturn(null);
         when(operations.findByIdForUpdate(any())).thenReturn(Optional.of(operation));
@@ -72,6 +71,7 @@ class PaymentGatewayOperationReconciliationServiceTest {
         String workerId = UUID.randomUUID().toString();
 
         when(operation.ownsLease(workerId, now)).thenReturn(true);
+        when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(1));
         when(operation.getPaymentId()).thenReturn(paymentId);
         when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
         when(operation.getProviderReference()).thenReturn(null);
