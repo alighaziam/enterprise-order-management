@@ -137,7 +137,7 @@ public class PaymentService implements PaymentOperations {
             return entity.toDomain();
         }
 
-        gateway.capture(payment.providerReference());
+        gateway.capture(payment.providerReference(), operationKey(id, PaymentOperationType.CAPTURE));
         entity.status(PaymentStatus.CAPTURED, Instant.now());
         outbox.append("PaymentCaptured", "PaymentIntent", id.toString(), 2,
                 payment.orderId().toString(), null, "{\"paymentId\":\"" + id + "\"}");
@@ -161,7 +161,7 @@ public class PaymentService implements PaymentOperations {
             return entity.toDomain();
         }
 
-        gateway.voidAuthorization(payment.providerReference());
+        gateway.voidAuthorization(payment.providerReference(), operationKey(id, PaymentOperationType.VOID));
         entity.status(PaymentStatus.VOIDED, Instant.now());
         outbox.append("PaymentVoided", "PaymentIntent", id.toString(), 3,
                 payment.orderId().toString(), null, "{\"paymentId\":\"" + id + "\"}");
@@ -191,7 +191,7 @@ public class PaymentService implements PaymentOperations {
             throw new IllegalStateException("Only captured payments can be refunded.");
         }
         entity.status(PaymentStatus.REFUND_PENDING, Instant.now());
-        gateway.refund(payment.providerReference());
+        gateway.refund(payment.providerReference(), operationKey(id, PaymentOperationType.REFUND));
         entity.status(PaymentStatus.REFUNDED, Instant.now());
         outbox.append("PaymentRefunded", "PaymentIntent", id.toString(), 4,
                 payment.orderId().toString(), null, "{\"paymentId\":\"" + id + "\"}");
