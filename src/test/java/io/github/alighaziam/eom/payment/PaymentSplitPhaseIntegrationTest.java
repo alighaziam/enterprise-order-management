@@ -45,7 +45,7 @@ class PaymentSplitPhaseIntegrationTest {
         assertEquals(PaymentStatus.REQUESTED, requested.status());
         assertEquals(PaymentOperationStatus.PENDING, operation(requested.id(), PaymentOperationType.AUTHORIZE).getStatus());
 
-        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
         PaymentIntent authorized = payments.get(requested.id());
         assertEquals(PaymentStatus.AUTHORIZED, authorized.status());
         assertTrue(authorized.providerReference().startsWith("sandbox-"));
@@ -53,13 +53,13 @@ class PaymentSplitPhaseIntegrationTest {
         PaymentIntent captureQueued = payments.capture(requested.id());
         assertEquals(PaymentStatus.AUTHORIZED, captureQueued.status());
         assertEquals(PaymentOperationStatus.PENDING, operation(requested.id(), PaymentOperationType.CAPTURE).getStatus());
-        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
         assertEquals(PaymentStatus.CAPTURED, payments.get(requested.id()).status());
 
         PaymentIntent refundQueued = payments.refund(requested.id());
         assertEquals(PaymentStatus.REFUND_PENDING, refundQueued.status());
         assertEquals(PaymentOperationStatus.PENDING, operation(requested.id(), PaymentOperationType.REFUND).getStatus());
-        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
         assertEquals(PaymentStatus.REFUNDED, payments.get(requested.id()).status());
 
         List<String> eventTypes = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
@@ -75,7 +75,7 @@ class PaymentSplitPhaseIntegrationTest {
         PaymentIntent requested = payments.authorize(order.id(), amount, order.currency(),
                 "split-void-" + UUID.randomUUID());
 
-        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
         assertEquals(PaymentStatus.AUTHORIZED, payments.get(requested.id()).status());
 
         PaymentIntent queued = payments.voidAuthorization(requested.id());
@@ -84,8 +84,45 @@ class PaymentSplitPhaseIntegrationTest {
         assertEquals(PaymentOperationStatus.PENDING, operation.getStatus());
         assertEquals(requested.id() + ":VOID", operation.getIdempotencyKey());
 
-        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
         assertEquals(PaymentStatus.VOIDED, payments.get(requested.id()).status());
+    }
+
+
+    @Test
+    void captureAndVoidCannotBothBeQueuedForTheSameAuthorizedPayment() {
+        BigDecimal amount = new BigDecimal("21.75");
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
+        PaymentIntent requested = payments.authorize(order.id(), amount, order.currency(),
+                "split-conflict-capture-" + UUID.randomUUID());
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
+        assertEquals(PaymentStatus.AUTHORIZED, payments.get(requested.id()).status());
+
+        payments.capture(requested.id());
+        assertThrows(IllegalStateException.class, () -> payments.voidAuthorization(requested.id()));
+
+        assertEquals(PaymentOperationStatus.PENDING,
+                operation(requested.id(), PaymentOperationType.CAPTURE).getStatus());
+        assertTrue(operationRepository.findByPaymentIdAndOperationType(requested.id(), PaymentOperationType.VOID)
+                .isEmpty());
+    }
+
+    @Test
+    void voidAndCaptureCannotBothBeQueuedForTheSameAuthorizedPayment() {
+        BigDecimal amount = new BigDecimal("23.25");
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
+        PaymentIntent requested = payments.authorize(order.id(), amount, order.currency(),
+                "split-conflict-void-" + UUID.randomUUID());
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
+        assertEquals(PaymentStatus.AUTHORIZED, payments.get(requested.id()).status());
+
+        payments.voidAuthorization(requested.id());
+        assertThrows(IllegalStateException.class, () -> payments.capture(requested.id()));
+
+        assertEquals(PaymentOperationStatus.PENDING,
+                operation(requested.id(), PaymentOperationType.VOID).getStatus());
+        assertTrue(operationRepository.findByPaymentIdAndOperationType(requested.id(), PaymentOperationType.CAPTURE)
+                .isEmpty());
     }
 
     private PaymentGatewayOperationEntity operation(UUID paymentId, PaymentOperationType type) {

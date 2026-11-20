@@ -67,25 +67,29 @@ The opt-in `app.payment.command-execution.enabled=true` flag now switches all fo
 
 The flag defaults to false to preserve the existing deterministic synchronous sandbox behavior. Enabling it activates both persisted command creation and the opt-in worker. The worker startup delay is configurable with `app.payment.command-execution.initial-delay` (default PT1S). Do not enable this mode for a live PSP until a real provider adapter, signed webhook verification, and authoritative operation lookup are available. In particular, UNKNOWN outcomes must remain under reconciliation/manual investigation and must never be blindly resubmitted.
 
-## Persisted command execution worker
+## Persisted split-phase payment workflow
 
-A dormant command executor now claims due `PENDING` operations in bounded batches, recovers expired processing leases before claiming, loads the associated payment snapshot, and dispatches AUTHORIZE/CAPTURE/VOID/REFUND through the provider-neutral `PaymentGateway` port. The claim transaction completes before provider I/O; the normalized success is applied through the existing short-transaction reconciliation service. Any exception is treated as an unknown outcome and never persisted verbatim or blindly retried.
+The persisted command workflow is now wired through all four `PaymentService` lifecycle entry points:
 
-The worker is opt-in through `app.payment.command-execution.enabled=true`; it is disabled by default. This is an execution primitive only: the current `PaymentService` still invokes the sandbox synchronously and does not yet create `gateway_operations` command records. Do not enable the worker in a live environment until command creation and all payment lifecycle entry points are migrated to the split-phase orchestration and verified end-to-end.
+- AUTHORIZE creates the payment intent and its PENDING command in the same database transaction.
+- CAPTURE and VOID persist stable, operation-specific idempotency keys while retaining the AUTHORIZED state until a definitive result is applied.
+- REFUND moves the payment to REFUND_PENDING and persists its command atomically.
+- The opt-in command worker claims committed commands, calls the provider-neutral gateway outside the database transaction, and applies the result in a separate lease-guarded transaction. Successful payment state transitions and outbox events commit together.
+- Provider exceptions and ambiguous outcomes become UNKNOWN; the worker never blindly retries a financial mutation.
+- The feature flag `app.payment.command-execution.enabled` defaults to false, preserving the deterministic synchronous sandbox path. When enabled, it activates command creation and execution together.
 
-## Required workflow change before a live PSP
+The split-phase lifecycle has PostgreSQL-backed integration coverage for AUTHORIZE → CAPTURE → REFUND and AUTHORIZE → VOID, including persisted PENDING commands, final states, stable keys and outbox ordering. The deterministic sandbox is the only configured provider.
 
-The current `PaymentService` calls the gateway synchronously while holding a database transaction/row lock. This is acceptable for the deterministic local sandbox, but it is not safe for a remote PSP because network latency and unknown outcomes can hold locks and leave local/provider state divergent.
+## Remaining requirements before a live PSP
 
-Before enabling a live adapter, change each remote operation to a persisted split-phase workflow:
-1. In a short database transaction, validate and persist an operation record with a stable operation idempotency key and `PENDING` state.
-2. Execute the PSP call outside the database transaction.
-3. Persist the sanitized response in a second short transaction.
-4. On timeout, leave the outcome as `UNKNOWN` and schedule reconciliation; do not mark it failed or issue a second financial operation blindly.
-5. Accept signed, deduplicated webhooks as an additional outcome channel; reconcile webhook and polling outcomes idempotently.
-6. Publish payment domain events through the transactional outbox only after the local state transition is committed.
+The orchestration boundary is implemented, but this repository is **not production payment processing ready**:
 
-Add provider contract tests for duplicate requests, timeout-after-submit, delayed/out-of-order webhooks, invalid signatures, duplicate webhook delivery, amount/currency mismatch, capture/void/refund replay, and reconciliation after process restart.
+1. Implement a real PSP adapter with explicit connect/read timeouts, TLS and secret-manager integration.
+2. Implement authoritative provider operation lookup for UNKNOWN outcomes. Until that exists, UNKNOWN must remain unresolved/manual-review work; never automatically resubmit.
+3. Add signed webhook verification, timestamp/replay protection, deduplication and amount/currency/merchant matching.
+4. Add provider contract tests for duplicate requests, timeout-after-submit, delayed/out-of-order webhooks, invalid signatures, duplicate delivery, amount/currency mismatch, capture/void/refund replay, and process restart recovery.
+5. Validate provider-specific idempotency retention, rate limits, error mapping, reconciliation behavior, operational alerts and disaster recovery in a production-like environment.
+6. Enforce mutual exclusion for different unresolved operations on the same payment. PR #50 adds the row-lock-serialized guard and PostgreSQL integration coverage for CAPTURE/VOID conflicts; treat it as verified only after CI and CodeQL pass on the final PR head.
 
 ## Configuration and activation
 

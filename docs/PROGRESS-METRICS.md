@@ -98,3 +98,13 @@ Provider references and status codes now accept only bounded safe identifier tok
 - Added PostgreSQL-backed end-to-end coverage for AUTHORIZE → CAPTURE → REFUND and a separate AUTHORIZE → VOID flow, explicitly checking PENDING commands before worker execution, final payment states after reconciliation, stable VOID idempotency key, and outbox event order.
 - The integration test uses the deterministic sandbox and delays scheduled execution so command batches are invoked deterministically.
 - No overall progress score increase is claimed; production PSP, signed webhooks, provider lookup and live-environment validation remain release gates.
+
+
+## Payment command concurrency hardening — PR #50 open — 20 November 2026
+
+- Added a repository query to detect other unresolved operations for the same payment, excluding an idempotent replay of the requested operation type.
+- CAPTURE, VOID and REFUND now reject enqueueing when a different operation for that payment is PENDING, PROCESSING, UNKNOWN, RECONCILING or FAILED.
+- This check runs after the payment row is locked, serializing competing lifecycle requests through the same payment record.
+- Added regression tests for CAPTURE while VOID is unresolved and VOID while CAPTURE is unresolved.
+- PR #50: https://github.com/alighaziam/enterprise-order-management/pull/50
+- CI and CodeQL must pass on the final PR head; documentation corrections and PostgreSQL-backed regression coverage are included in this PR. No score increase is claimed.

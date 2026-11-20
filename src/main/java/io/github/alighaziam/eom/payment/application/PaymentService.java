@@ -132,6 +132,7 @@ public class PaymentService implements PaymentOperations {
 
         if (splitPhaseEnabled) {
             if (hasExistingOperation(id, PaymentOperationType.CAPTURE)) return entity.toDomain();
+            ensureNoConflictingOperation(id, PaymentOperationType.CAPTURE);
             enqueueOperation(entity, PaymentOperationType.CAPTURE, operationKey(id, PaymentOperationType.CAPTURE),
                     Instant.now());
             return entity.toDomain();
@@ -156,6 +157,7 @@ public class PaymentService implements PaymentOperations {
 
         if (splitPhaseEnabled) {
             if (hasExistingOperation(id, PaymentOperationType.VOID)) return entity.toDomain();
+            ensureNoConflictingOperation(id, PaymentOperationType.VOID);
             enqueueOperation(entity, PaymentOperationType.VOID, operationKey(id, PaymentOperationType.VOID),
                     Instant.now());
             return entity.toDomain();
@@ -181,6 +183,7 @@ public class PaymentService implements PaymentOperations {
             if (payment.status() != PaymentStatus.CAPTURED) {
                 throw new IllegalStateException("Only captured payments can be refunded.");
             }
+            ensureNoConflictingOperation(id, PaymentOperationType.REFUND);
             Instant now = Instant.now();
             entity.status(PaymentStatus.REFUND_PENDING, now);
             enqueueOperation(entity, PaymentOperationType.REFUND, operationKey(id, PaymentOperationType.REFUND), now);
@@ -236,6 +239,20 @@ public class PaymentService implements PaymentOperations {
             throw new IllegalStateException("A previous payment operation failed; manual review is required.");
         }
         return true;
+    }
+
+    private void ensureNoConflictingOperation(UUID paymentId, PaymentOperationType requestedType) {
+        List<PaymentOperationStatus> blockingStatuses = List.of(
+                PaymentOperationStatus.PENDING,
+                PaymentOperationStatus.PROCESSING,
+                PaymentOperationStatus.UNKNOWN,
+                PaymentOperationStatus.RECONCILING,
+                PaymentOperationStatus.FAILED);
+        if (gatewayOperations.existsByPaymentIdAndOperationTypeNotAndStatusIn(
+                paymentId, requestedType, blockingStatuses)) {
+            throw new IllegalStateException(
+                    "Another payment operation is pending, unresolved, or requires manual review.");
+        }
     }
 
     private static String operationKey(UUID paymentId, PaymentOperationType type) {
