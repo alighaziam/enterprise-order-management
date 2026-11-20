@@ -9,6 +9,7 @@ import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationRe
 import io.github.alighaziam.eom.payment.infrastructure.PaymentIntentEntity;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -53,6 +54,9 @@ class PaymentGatewayCommandExecutionWorkerTest {
 
         assertEquals(4, worker.executeBatch(now));
 
+        InOrder claimOrder = inOrder(claims);
+        claimOrder.verify(claims).recoverExpiredProcessing(now);
+        claimOrder.verify(claims).claimPendingBatch(20, now);
         verify(gateway).authorize(paymentId, payment.amount(), payment.currency(), "authorize-key");
         verify(gateway).capture("provider-ref-123");
         verify(gateway).voidAuthorization("provider-ref-123");
