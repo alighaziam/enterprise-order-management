@@ -107,6 +107,20 @@ public class PaymentGatewayOperationReconciliationService {
         throw new IllegalStateException("Unsupported provider reconciliation state.");
     }
 
+    /**
+     * Records a command that was rejected locally before any provider request was sent.
+     * This is definitive FAILED work, not an UNKNOWN provider outcome, so it must not
+     * enter the provider lookup/reconciliation queue.
+     */
+    @Transactional
+    public boolean rejectBeforeSubmission(UUID operationId, String workerId, String reason, Instant now) {
+        PaymentGatewayOperationEntity operation = ownedOperation(operationId, workerId, now);
+        if (operation == null) return false;
+        operation.failed(reason, workerId, now);
+        operations.saveAndFlush(operation);
+        return true;
+    }
+
     @Transactional
     public boolean markUnknown(UUID operationId, String workerId, String reason, Instant now) {
         PaymentGatewayOperationEntity operation = ownedOperation(operationId, workerId, now);
