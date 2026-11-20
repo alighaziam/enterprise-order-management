@@ -50,6 +50,35 @@ class PaymentGatewayReconciliationWorkerTest {
     }
 
     @Test
+    void reconciliationPersistenceFailureIsNotMisclassifiedAsProviderLookupFailure() {
+        PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
+        PaymentGatewayReconciliation gateway = mock(PaymentGatewayReconciliation.class);
+        PaymentGatewayOperationReconciliationService results =
+                mock(PaymentGatewayOperationReconciliationService.class);
+        UUID operationId = UUID.randomUUID();
+        String workerId = UUID.randomUUID().toString();
+        PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
+        when(operation.getId()).thenReturn(operationId);
+        when(operation.getLockedBy()).thenReturn(workerId);
+        when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
+        when(operation.getIdempotencyKey()).thenReturn("stable-operation-key");
+        when(operation.getProviderReference()).thenReturn(null);
+        when(claims.claimUnknownBatch(eq(20), any(Instant.class))).thenReturn(List.of(operation));
+        when(gateway.lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null))
+                .thenReturn(new ProviderOperationLookup(ProviderOperationState.SUCCEEDED,
+                        "provider-reference", "APPROVED", Instant.now(), false));
+        when(results.apply(eq(operationId), eq(workerId), any(), any(Instant.class)))
+                .thenThrow(new IllegalStateException("database unavailable"));
+
+        PaymentGatewayReconciliationWorker worker =
+                new PaymentGatewayReconciliationWorker(claims, gateway, results);
+
+        assertThrows(IllegalStateException.class, () -> worker.reconcileBatch(Instant.now()));
+        verify(results, never()).markUnknown(any(), anyString(), anyString(), any(Instant.class));
+        verify(gateway).lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null);
+    }
+
+    @Test
     void lookupFailureLeavesOperationUnknownAndNeverPersistsExceptionText() {
         PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
         PaymentGatewayReconciliation gateway = mock(PaymentGatewayReconciliation.class);
