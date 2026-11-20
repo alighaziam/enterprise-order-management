@@ -109,3 +109,13 @@ Provider references and status codes now accept only bounded safe identifier tok
 - PR #50 merged as `7a3036aa9587e37eada47cbbb492776e18d9c0cb` from exact head `52c41955f90b4212638b41a34f950505596a690b`.
 - CI run 44699527872 and CodeQL run 44699527860 both passed on that exact head. Backend/integration tests, frontend syntax, Docker/Compose and both CodeQL analyses passed.
 - Documentation now reflects the implemented split-phase orchestration and remaining live-PSP gates. No overall score increase is claimed; the six-dimension rubric has not been fully reassessed.
+
+
+## Latest merged increment — distinguish pre-submission rejection from UNKNOWN — 20 November 2026
+
+- PR #51 merged as `4c5b671ef0add8d130ca421d38ef94be86039a65` from exact head `82c272b86d549398647491b4eef7063f2562180e`.
+- CI run 44700281471 and CodeQL run 44700281489 both passed on the exact PR head.
+- Missing payment records and invalid local payment-state preconditions are now marked definitively FAILED before any provider call; they no longer enter UNKNOWN reconciliation.
+- Provider exceptions remain UNKNOWN because the provider may have accepted a request before a timeout or transport failure.
+- Added worker and reconciliation-service tests proving locally rejected commands do not call the gateway, mutate payment state, publish outbox events, or enter provider lookup.
+- No overall score increase is claimed; production PSP adapter, authoritative provider lookup, signed webhooks and production-like validation remain open.
