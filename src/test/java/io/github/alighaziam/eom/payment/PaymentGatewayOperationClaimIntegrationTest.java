@@ -159,6 +159,48 @@ class PaymentGatewayOperationClaimIntegrationTest {
     }
 
     @Test
+    void concurrentWorkersCanClaimAnUnknownOperationForReconciliationOnlyOnce() throws Exception {
+        Instant now = Instant.now();
+        PaymentIntentEntity payment = createPayment(now);
+        UUID id = UUID.randomUUID();
+        repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
+
+        try {
+            var initialClaim = claims.claimPendingBatch(1, now).stream()
+                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+            assertTrue(claims.markUnknown(id, initialClaim.getLockedBy(),
+                    "provider outcome requires reconciliation", now.plusSeconds(1)));
+
+            Instant eligibleAt = now.plusSeconds(32);
+            var ready = new java.util.concurrent.CountDownLatch(2);
+            var start = new java.util.concurrent.CountDownLatch(1);
+
+            try (var executor = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+                var first = executor.submit(() -> claimUnknownAfterBarrier(eligibleAt, ready, start));
+                var second = executor.submit(() -> claimUnknownAfterBarrier(eligibleAt, ready, start));
+
+                assertTrue(ready.await(10, java.util.concurrent.TimeUnit.SECONDS),
+                        "Both reconciliation workers should be ready before claiming");
+                start.countDown();
+
+                var firstClaims = first.get(15, java.util.concurrent.TimeUnit.SECONDS);
+                var secondClaims = second.get(15, java.util.concurrent.TimeUnit.SECONDS);
+                long claimsForOperation = java.util.stream.Stream.concat(firstClaims.stream(), secondClaims.stream())
+                        .filter(claimed -> claimed.getId().equals(id)).count();
+
+                assertEquals(1, claimsForOperation,
+                        "An unknown gateway operation must be owned by exactly one concurrent reconciliation worker");
+                var persisted = repository.findById(id).orElseThrow();
+                assertEquals(PaymentOperationStatus.RECONCILING, persisted.getStatus());
+                assertEquals(2, persisted.getAttempts());
+            }
+        } finally {
+            repository.deleteById(id);
+            payments.deleteById(payment.toDomain().id());
+        }
+    }
+
+    @Test
     void oldestStatusTimestampTracksTheCurrentLifecycleState() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         PaymentIntentEntity payment = createPayment(now);
@@ -224,6 +266,17 @@ class PaymentGatewayOperationClaimIntegrationTest {
             throw new IllegalStateException("Timed out waiting for concurrent claim start");
         }
         return claims.claimPendingBatch(100, now);
+    }
+
+    private java.util.List<PaymentGatewayOperationEntity> claimUnknownAfterBarrier(
+            Instant now,
+            java.util.concurrent.CountDownLatch ready,
+            java.util.concurrent.CountDownLatch start) throws Exception {
+        ready.countDown();
+        if (!start.await(10, java.util.concurrent.TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Timed out waiting for concurrent reconciliation claim start");
+        }
+        return claims.claimUnknownBatch(100, now);
     }
 
     private PaymentIntentEntity createPayment(Instant now) {
