@@ -95,29 +95,51 @@ class PaymentGatewayOperationClaimIntegrationTest {
     }
 
     @Test
-    void expiredLeaseMetricCountsOnlyUnrecoveredProcessingAndReconciliationLeases() {
+    void expiredLeaseMetricCountsUnrecoveredProcessingAndReconciliationLeases() {
         Instant now = Instant.now();
-        PaymentIntentEntity payment = createPayment(now);
-        UUID id = UUID.randomUUID();
-        repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
+        PaymentIntentEntity processingPayment = createPayment(now);
+        PaymentIntentEntity reconciliationPayment = createPayment(now);
+        UUID processingId = UUID.randomUUID();
+        UUID reconciliationId = UUID.randomUUID();
+        repository.saveAndFlush(operation(processingId, processingPayment.toDomain().id(), now));
+        repository.saveAndFlush(operation(reconciliationId, reconciliationPayment.toDomain().id(), now));
 
         try {
-            claims.claimPendingBatch(1, now).stream()
-                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+            var processingClaim = claims.claimPendingBatch(10, now).stream()
+                    .filter(item -> item.getId().equals(processingId)).findFirst().orElseThrow();
+
+            var reconciliationInitialClaim = claims.claimPendingBatch(10, now).stream()
+                    .filter(item -> item.getId().equals(reconciliationId)).findFirst().orElseThrow();
+            assertTrue(claims.markUnknown(reconciliationId, reconciliationInitialClaim.getLockedBy(),
+                    "provider outcome requires reconciliation", now.plusSeconds(1)));
+
+            var reconciliationClaim = claims.claimUnknownBatch(1, now.plusSeconds(32)).stream()
+                    .filter(item -> item.getId().equals(reconciliationId)).findFirst().orElseThrow();
+            assertEquals(PaymentOperationStatus.RECONCILING, reconciliationClaim.getStatus());
 
             var leasedStatuses = java.util.List.of(
                     PaymentOperationStatus.PROCESSING, PaymentOperationStatus.RECONCILING);
             assertEquals(0, repository.countByStatusInAndLockedUntilLessThanEqual(
                     leasedStatuses, now.plusSeconds(119)));
             assertEquals(1, repository.countByStatusInAndLockedUntilLessThanEqual(
-                    leasedStatuses, now.plusSeconds(121)));
+                    leasedStatuses, now.plusSeconds(121)),
+                    "Only the PROCESSING lease should have expired at this point");
+            assertEquals(2, repository.countByStatusInAndLockedUntilLessThanEqual(
+                    leasedStatuses, now.plusSeconds(153)),
+                    "Both PROCESSING and RECONCILING expired leases must be observable");
 
-            assertEquals(1, claims.recoverExpiredProcessing(now.plusSeconds(121)));
+            assertEquals(2, claims.recoverExpiredProcessing(now.plusSeconds(153)));
             assertEquals(0, repository.countByStatusInAndLockedUntilLessThanEqual(
-                    leasedStatuses, now.plusSeconds(122)));
+                    leasedStatuses, now.plusSeconds(154)));
+            assertEquals(PaymentOperationStatus.UNKNOWN, repository.findById(processingId).orElseThrow().getStatus());
+            assertEquals(PaymentOperationStatus.UNKNOWN, repository.findById(reconciliationId).orElseThrow().getStatus());
+            assertFalse(claims.claimPendingBatch(10, now.plusSeconds(154)).stream()
+                    .anyMatch(item -> item.getId().equals(processingId) || item.getId().equals(reconciliationId)));
         } finally {
-            repository.deleteById(id);
-            payments.deleteById(payment.toDomain().id());
+            repository.deleteById(processingId);
+            repository.deleteById(reconciliationId);
+            payments.deleteById(processingPayment.toDomain().id());
+            payments.deleteById(reconciliationPayment.toDomain().id());
         }
     }
 
