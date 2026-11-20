@@ -16,6 +16,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -86,6 +89,47 @@ class PaymentSplitPhaseIntegrationTest {
 
         assertEquals(1, commandWorker.executeBatch(Instant.now()));
         assertEquals(PaymentStatus.VOIDED, payments.get(requested.id()).status());
+    }
+
+    @Test
+    void concurrentCaptureRequestsPersistOnlyOneCommandAndOneOutboxTransition() throws Exception {
+        BigDecimal amount = new BigDecimal("33.75");
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
+        PaymentIntent requested = payments.authorize(order.id(), amount, order.currency(),
+                "split-race-" + UUID.randomUUID());
+        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertEquals(PaymentStatus.AUTHORIZED, payments.get(requested.id()).status());
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> capture(requested.id(), ready, start));
+            var second = executor.submit(() -> capture(requested.id(), ready, start));
+            assertTrue(ready.await(10, TimeUnit.SECONDS), "Both capture requests should be ready");
+            start.countDown();
+
+            assertEquals(PaymentStatus.AUTHORIZED, first.get(15, TimeUnit.SECONDS).status());
+            assertEquals(PaymentStatus.AUTHORIZED, second.get(15, TimeUnit.SECONDS).status());
+        }
+
+        PaymentGatewayOperationEntity command = operation(requested.id(), PaymentOperationType.CAPTURE);
+        assertEquals(PaymentOperationStatus.PENDING, command.getStatus());
+        assertEquals(0, command.getAttempts());
+        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertEquals(PaymentStatus.CAPTURED, payments.get(requested.id()).status());
+
+        List<String> eventTypes = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
+                        "PaymentIntent", requested.id().toString()).stream()
+                .map(event -> event.getEventType()).toList();
+        assertEquals(List.of("PaymentAuthorized", "PaymentCaptured"), eventTypes);
+    }
+
+    private PaymentIntent capture(UUID paymentId, CountDownLatch ready, CountDownLatch start) throws Exception {
+        ready.countDown();
+        if (!start.await(10, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Timed out waiting for concurrent capture start");
+        }
+        return payments.capture(paymentId);
     }
 
     private PaymentGatewayOperationEntity operation(UUID paymentId, PaymentOperationType type) {
