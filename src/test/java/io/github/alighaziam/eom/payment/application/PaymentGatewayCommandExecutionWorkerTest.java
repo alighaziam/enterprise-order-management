@@ -14,6 +14,7 @@ import org.mockito.InOrder;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,12 +25,19 @@ import static org.mockito.Mockito.*;
 class PaymentGatewayCommandExecutionWorkerTest {
 
     @Test
-    void dispatchesEachPersistedOperationTypeUsingTheExistingPaymentReference() {
+    void dispatchesEachPersistedOperationTypeOnlyForCompatiblePaymentStates() {
         Instant now = Instant.parse("2026-11-20T10:00:00Z");
-        UUID paymentId = UUID.randomUUID();
-        PaymentIntent payment = new PaymentIntent(paymentId, UUID.randomUUID(),
-                new BigDecimal("18.50"), "EUR", PaymentStatus.AUTHORIZED,
-                "payment-key", "provider-ref-123", null, now, now);
+        UUID authorizePaymentId = UUID.randomUUID();
+        UUID capturePaymentId = UUID.randomUUID();
+        UUID voidPaymentId = UUID.randomUUID();
+        UUID refundPaymentId = UUID.randomUUID();
+        BigDecimal amount = new BigDecimal("18.50");
+
+        Map<UUID, PaymentIntent> snapshots = Map.of(
+                authorizePaymentId, payment(authorizePaymentId, amount, PaymentStatus.REQUESTED, null, now),
+                capturePaymentId, payment(capturePaymentId, amount, PaymentStatus.AUTHORIZED, "provider-ref-capture", now),
+                voidPaymentId, payment(voidPaymentId, amount, PaymentStatus.AUTHORIZED, "provider-ref-void", now),
+                refundPaymentId, payment(refundPaymentId, amount, PaymentStatus.REFUND_PENDING, "provider-ref-refund", now));
 
         PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
         PaymentGateway gateway = mock(PaymentGateway.class);
@@ -38,13 +46,16 @@ class PaymentGatewayCommandExecutionWorkerTest {
                 mock(PaymentGatewayOperationReconciliationService.class);
 
         List<PaymentGatewayOperationEntity> operations = List.of(
-                operation(paymentId, PaymentOperationType.AUTHORIZE, "authorize-key"),
-                operation(paymentId, PaymentOperationType.CAPTURE, "capture-key"),
-                operation(paymentId, PaymentOperationType.VOID, "void-key"),
-                operation(paymentId, PaymentOperationType.REFUND, "refund-key"));
+                operation(authorizePaymentId, PaymentOperationType.AUTHORIZE, "authorize-key"),
+                operation(capturePaymentId, PaymentOperationType.CAPTURE, "capture-key"),
+                operation(voidPaymentId, PaymentOperationType.VOID, "void-key"),
+                operation(refundPaymentId, PaymentOperationType.REFUND, "refund-key"));
         when(claims.claimPendingBatch(20, now)).thenReturn(operations);
-        when(payments.findById(paymentId)).thenReturn(Optional.of(mockPaymentEntity(payment)));
-        when(gateway.authorize(paymentId, payment.amount(), payment.currency(), "authorize-key"))
+        when(payments.findById(any())).thenAnswer(invocation -> {
+            UUID requestedId = invocation.getArgument(0);
+            return Optional.of(mockPaymentEntity(snapshots.get(requestedId)));
+        });
+        when(gateway.authorize(authorizePaymentId, amount, "EUR", "authorize-key"))
                 .thenReturn("provider-auth-456");
         when(results.apply(any(), anyString(), any(ProviderOperationLookup.class), any(Instant.class)))
                 .thenReturn(true);
@@ -57,10 +68,10 @@ class PaymentGatewayCommandExecutionWorkerTest {
         InOrder claimOrder = inOrder(claims);
         claimOrder.verify(claims).recoverExpiredProcessing(now);
         claimOrder.verify(claims).claimPendingBatch(20, now);
-        verify(gateway).authorize(paymentId, payment.amount(), payment.currency(), "authorize-key");
-        verify(gateway).capture("provider-ref-123");
-        verify(gateway).voidAuthorization("provider-ref-123");
-        verify(gateway).refund("provider-ref-123");
+        verify(gateway).authorize(authorizePaymentId, amount, "EUR", "authorize-key");
+        verify(gateway).capture("provider-ref-capture");
+        verify(gateway).voidAuthorization("provider-ref-void");
+        verify(gateway).refund("provider-ref-refund");
         verify(results, times(4)).apply(any(), anyString(), any(ProviderOperationLookup.class), any(Instant.class));
         verifyNoMoreInteractions(gateway);
     }
@@ -93,12 +104,41 @@ class PaymentGatewayCommandExecutionWorkerTest {
     }
 
     @Test
+    void incompatiblePaymentStateIsNotSubmittedToProvider() {
+        Instant now = Instant.parse("2026-11-20T10:00:00Z");
+        UUID paymentId = UUID.randomUUID();
+        PaymentIntent payment = payment(paymentId, new BigDecimal("18.50"),
+                PaymentStatus.CAPTURED, "provider-ref-123", now);
+        PaymentGatewayOperationEntity operation =
+                operation(paymentId, PaymentOperationType.CAPTURE, "capture-key");
+        String workerId = operation.getLockedBy();
+
+        PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
+        PaymentGateway gateway = mock(PaymentGateway.class);
+        PaymentRepository payments = mock(PaymentRepository.class);
+        PaymentGatewayOperationReconciliationService results =
+                mock(PaymentGatewayOperationReconciliationService.class);
+        when(claims.claimPendingBatch(20, now)).thenReturn(List.of(operation));
+        when(payments.findById(paymentId)).thenReturn(Optional.of(mockPaymentEntity(payment)));
+        when(results.markUnknown(eq(operation.getId()), eq(workerId),
+                contains("incompatible with the current payment state"), any(Instant.class))).thenReturn(true);
+
+        PaymentGatewayCommandExecutionWorker worker =
+                new PaymentGatewayCommandExecutionWorker(claims, gateway, payments, results);
+
+        assertEquals(1, worker.executeBatch(now));
+        verifyNoInteractions(gateway);
+        verify(results).markUnknown(eq(operation.getId()), eq(workerId),
+                eq("Capture command requires an authorized payment and provider reference; provider command was not submitted."),
+                any(Instant.class));
+    }
+
+    @Test
     void providerExceptionIsRecordedAsUnknownWithoutPersistingExceptionText() {
         Instant now = Instant.parse("2026-11-20T10:00:00Z");
         UUID paymentId = UUID.randomUUID();
-        PaymentIntent payment = new PaymentIntent(paymentId, UUID.randomUUID(),
-                new BigDecimal("18.50"), "EUR", PaymentStatus.REQUESTED,
-                "payment-key", null, null, now, now);
+        PaymentIntent payment = payment(paymentId, new BigDecimal("18.50"),
+                PaymentStatus.REQUESTED, null, now);
         PaymentGatewayOperationEntity operation =
                 operation(paymentId, PaymentOperationType.AUTHORIZE, "authorize-key");
         String workerId = operation.getLockedBy();
@@ -123,6 +163,12 @@ class PaymentGatewayCommandExecutionWorkerTest {
                 eq("Provider command execution ended without a definitive outcome."), any(Instant.class));
         verify(gateway).authorize(paymentId, payment.amount(), payment.currency(), "authorize-key");
         verifyNoMoreInteractions(gateway);
+    }
+
+    private static PaymentIntent payment(UUID id, BigDecimal amount, PaymentStatus status,
+                                         String reference, Instant now) {
+        return new PaymentIntent(id, UUID.randomUUID(), amount, "EUR", status,
+                "payment-key-" + id, reference, null, now, now);
     }
 
     private static PaymentGatewayOperationEntity operation(
