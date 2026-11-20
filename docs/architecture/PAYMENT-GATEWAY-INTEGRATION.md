@@ -51,6 +51,12 @@ If the local payment state is incompatible with a provider-confirmed final resul
 
 The worker is dormant in the current repository because no provider lookup adapter is installed. The deterministic sandbox remains the only active payment adapter, and its synchronous behavior is unchanged.
 
+## Persisted command execution worker
+
+A dormant command executor now claims due `PENDING` operations in bounded batches, recovers expired processing leases before claiming, loads the associated payment snapshot, and dispatches AUTHORIZE/CAPTURE/VOID/REFUND through the provider-neutral `PaymentGateway` port. The claim transaction completes before provider I/O; the normalized success is applied through the existing short-transaction reconciliation service. Any exception is treated as an unknown outcome and never persisted verbatim or blindly retried.
+
+The worker is opt-in through `app.payment.command-execution.enabled=true`; it is disabled by default. This is an execution primitive only: the current `PaymentService` still invokes the sandbox synchronously and does not yet create `gateway_operations` command records. Do not enable the worker in a live environment until command creation and all payment lifecycle entry points are migrated to the split-phase orchestration and verified end-to-end.
+
 ## Required workflow change before a live PSP
 
 The current `PaymentService` calls the gateway synchronously while holding a database transaction/row lock. This is acceptable for the deterministic local sandbox, but it is not safe for a remote PSP because network latency and unknown outcomes can hold locks and leave local/provider state divergent.
@@ -74,4 +80,4 @@ Add provider contract tests for duplicate requests, timeout-after-submit, delaye
 
 ## Readiness boundary
 
-The code now has a provider-neutral payment command boundary, durable operation and lease state, and a provider-neutral reconciliation contract/worker. This is **not** a live payment gateway connection or production payment processing enablement. The command execution worker, provider-specific adapter, webhook verification, and conversion of checkout/payment flows to split-phase processing are still required before a live PSP can safely be activated.
+The code now has a provider-neutral payment command boundary, durable operation and lease state, and a provider-neutral reconciliation contract/worker. This is **not** a live payment gateway connection or production payment processing enablement. The command executor exists but is opt-in and is not yet connected to payment command creation; provider-specific adapter, webhook verification, and conversion of checkout/payment flows to split-phase processing remain required before a live PSP can safely be activated.
