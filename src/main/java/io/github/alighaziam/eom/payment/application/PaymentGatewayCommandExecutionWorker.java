@@ -2,6 +2,7 @@ package io.github.alighaziam.eom.payment.application;
 
 import io.github.alighaziam.eom.payment.PaymentIntent;
 import io.github.alighaziam.eom.payment.PaymentOperationType;
+import io.github.alighaziam.eom.payment.PaymentStatus;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationClaimService;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationEntity;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationReconciliationService;
@@ -17,8 +18,8 @@ import java.util.List;
  * Executes persisted financial commands after their claim transaction has committed.
  *
  * The provider call is deliberately made without a surrounding database transaction.
- * Any exception is treated as an unknown outcome and handed to reconciliation; this
- * worker never retries or creates a second financial command.
+ * Any provider exception is treated as an unknown outcome and handed to reconciliation;
+ * this worker never retries or creates a second financial command.
  */
 @Component
 @ConditionalOnProperty(name = "app.payment.command-execution.enabled", havingValue = "true")
@@ -70,6 +71,14 @@ public class PaymentGatewayCommandExecutionWorker {
                     continue;
                 }
 
+                String preconditionFailure = preconditionFailure(operation, payment);
+                if (preconditionFailure != null) {
+                    if (results.markUnknown(operation.getId(), workerId, preconditionFailure, Instant.now())) {
+                        completed++;
+                    }
+                    continue;
+                }
+
                 String providerReference = execute(operation, payment);
                 ProviderOperationLookup observation = new ProviderOperationLookup(
                         ProviderOperationState.SUCCEEDED, providerReference, "EXECUTED", Instant.now(), false);
@@ -87,31 +96,39 @@ public class PaymentGatewayCommandExecutionWorker {
         return completed;
     }
 
+    private static String preconditionFailure(PaymentGatewayOperationEntity operation, PaymentIntent payment) {
+        return switch (operation.getOperationType()) {
+            case AUTHORIZE -> payment.status() == PaymentStatus.REQUESTED
+                    ? null : "Authorization command is incompatible with the current payment state; provider command was not submitted.";
+            case CAPTURE -> payment.status() == PaymentStatus.AUTHORIZED && hasProviderReference(payment)
+                    ? null : "Capture command requires an authorized payment and provider reference; provider command was not submitted.";
+            case VOID -> payment.status() == PaymentStatus.AUTHORIZED && hasProviderReference(payment)
+                    ? null : "Void command requires an authorized payment and provider reference; provider command was not submitted.";
+            case REFUND -> payment.status() == PaymentStatus.REFUND_PENDING && hasProviderReference(payment)
+                    ? null : "Refund command requires a refund-pending payment and provider reference; provider command was not submitted.";
+        };
+    }
+
     private String execute(PaymentGatewayOperationEntity operation, PaymentIntent payment) {
         return switch (operation.getOperationType()) {
             case AUTHORIZE -> gateway.authorize(payment.id(), payment.amount(), payment.currency(),
                     operation.getIdempotencyKey());
             case CAPTURE -> {
-                requireProviderReference(payment);
                 gateway.capture(payment.providerReference());
                 yield null;
             }
             case VOID -> {
-                requireProviderReference(payment);
                 gateway.voidAuthorization(payment.providerReference());
                 yield null;
             }
             case REFUND -> {
-                requireProviderReference(payment);
                 gateway.refund(payment.providerReference());
                 yield null;
             }
         };
     }
 
-    private static void requireProviderReference(PaymentIntent payment) {
-        if (payment.providerReference() == null || payment.providerReference().isBlank()) {
-            throw new IllegalStateException("Payment has no provider reference for this operation.");
-        }
+    private static boolean hasProviderReference(PaymentIntent payment) {
+        return payment.providerReference() != null && !payment.providerReference().isBlank();
     }
 }
