@@ -125,7 +125,7 @@ class PaymentGatewayCommandExecutionWorkerTest {
         when(claims.claimPendingBatch(20, now)).thenReturn(List.of(operation));
         when(payments.findById(paymentId)).thenReturn(Optional.of(paymentEntity));
         when(results.markUnknown(eq(operation.getId()), eq(workerId),
-                contains("incompatible with the current payment state"), any(Instant.class))).thenReturn(true);
+                contains("Capture command requires an authorized payment"), any(Instant.class))).thenReturn(true);
 
         PaymentGatewayCommandExecutionWorker worker =
                 new PaymentGatewayCommandExecutionWorker(claims, gateway, payments, results);
