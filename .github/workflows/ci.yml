@@ -53,11 +53,10 @@ jobs:
         run: mvn --batch-mode --no-transfer-progress clean verify
       - name: Validate Prometheus configuration and alert rules
         run: |
-          mkdir -p /tmp/eom-prometheus-secrets
-          printf 'ci-placeholder' > /tmp/eom-prometheus-secrets/eom-operations-token
+          mkdir -p deploy/prometheus/secrets
+          printf 'ci-placeholder' > deploy/prometheus/secrets/eom-operations-token
           docker run --rm --entrypoint=/bin/promtool \
             -v "$PWD/deploy/prometheus:/etc/prometheus:ro" \
-            -v "/tmp/eom-prometheus-secrets:/etc/prometheus/secrets:ro" \
             prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
           docker run --rm --entrypoint=/bin/promtool \
             -v "$PWD/deploy/prometheus:/etc/prometheus:ro" \
