@@ -131,6 +131,30 @@ class PaymentGatewayOperationClaimIntegrationTest {
     }
 
     @Test
+    void oldestStatusTimestampTracksTheCurrentLifecycleState() {
+        Instant now = Instant.now();
+        PaymentIntentEntity payment = createPayment(now);
+        UUID id = UUID.randomUUID();
+        repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
+
+        try {
+            assertEquals(now, repository.findOldestUpdatedAtByStatus(PaymentOperationStatus.PENDING).orElseThrow());
+
+            var claimed = claims.claimPendingBatch(10, now).stream()
+                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+            Instant unknownAt = now.plusSeconds(5);
+            assertTrue(claims.markUnknown(id, claimed.getLockedBy(), "provider outcome pending", unknownAt));
+
+            assertEquals(unknownAt,
+                    repository.findOldestUpdatedAtByStatus(PaymentOperationStatus.UNKNOWN).orElseThrow());
+            assertTrue(repository.findOldestUpdatedAtByStatus(PaymentOperationStatus.PENDING).isEmpty());
+        } finally {
+            repository.deleteById(id);
+            payments.deleteById(payment.toDomain().id());
+        }
+    }
+
+    @Test
     void concurrentWorkersCanClaimAPendingOperationOnlyOnce() throws Exception {
         Instant now = Instant.now();
         PaymentIntentEntity payment = createPayment(now);
