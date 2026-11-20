@@ -43,7 +43,7 @@ class PaymentGatewayReconciliationWorkerTest {
 
         assertEquals(1, worker.reconcileBatch(Instant.now()));
         verify(claims).recoverExpiredProcessing(any(Instant.class));
-        verify(claims).claimUnknownBatch(eq(1), any(Instant.class));
+        verify(claims, times(2)).claimUnknownBatch(eq(1), any(Instant.class));
         verify(gateway).lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null);
         verify(results).apply(eq(operationId), eq(workerId), any(ProviderOperationLookup.class), any(Instant.class));
         verifyNoMoreInteractions(claims);
