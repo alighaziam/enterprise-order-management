@@ -185,3 +185,8 @@ Copy `.env.example` to `.env`, replace the local database password and WSO2 endp
 Checkout first reserves inventory, creates the order/workflow and appends `CheckoutStarted` in one short database transaction. The workflow's unique idempotency-key constraint is the final concurrency arbiter: a competing request that loses the insert race rolls back its local order and inventory reservation and returns the winner's workflow. Payment authorization/capture and shipment creation execute after the reservation transaction commits. The current payment and carrier adapters are local deterministic sandboxes and make no network calls. A real PSP/carrier adapter must use persisted split-phase commands, provider idempotency keys, and outcome reconciliation so remote calls do not hold database locks.
 
 Each new idempotency key is stored with a SHA-256 fingerprint of the customer, ordered line items and delivery address. Replaying the same key with the same request returns the original workflow; reusing it with a different request returns HTTP 409. Existing workflows migrated with the `legacy` fingerprint retain backward-compatible replay behavior.
+
+
+## Payment operation metrics and alerting
+
+The authenticated Prometheus endpoint exports payment operation backlog gauges. Prometheus scrape configuration, alert rules for UNKNOWN/PENDING/RECONCILING operations, secure token handling, threshold tuning, and the operator response runbook are documented in [Payment metrics and alerts](docs/operations/PAYMENT-METRICS-AND-ALERTS.md). Example configuration files are under `deploy/prometheus/`. The scrape identity requires the `operations.admin` scope; do not expose the endpoint publicly.

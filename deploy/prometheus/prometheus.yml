@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/payment-alerts.yml
+
+scrape_configs:
+  - job_name: enterprise-order-management
+    metrics_path: /actuator/prometheus
+    scheme: http
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - app:8080
+    # Mount a short-lived, read-only operations.admin access token here.
+    # Never commit the token or bake it into this file/image.
+    bearer_token_file: /etc/prometheus/secrets/eom-operations-token
