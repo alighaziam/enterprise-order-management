@@ -94,5 +94,9 @@ public interface PaymentGatewayOperationRepository
 
     List<PaymentGatewayOperationEntity> findByPaymentIdOrderByCreatedAtAsc(UUID paymentId);
 
+    boolean existsByPaymentIdAndOperationTypeNotAndStatusIn(UUID paymentId,
+            io.github.alighaziam.eom.payment.PaymentOperationType operationType,
+            List<PaymentOperationStatus> statuses);
+
     long countByStatus(PaymentOperationStatus status);
 }
