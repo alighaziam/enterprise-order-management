@@ -208,6 +208,22 @@ public class PaymentService implements PaymentOperations {
     }
 
     @Transactional(readOnly = true)
+    public List<PaymentOperationView> operations(UUID paymentId) {
+        find(paymentId); // Preserve the payment resource's 404 semantics.
+        return gatewayOperations.findByPaymentIdOrderByCreatedAtAsc(paymentId).stream()
+                .map(operation -> new PaymentOperationView(
+                        operation.getId(),
+                        operation.getOperationType(),
+                        operation.getStatus(),
+                        operation.getAttempts(),
+                        operation.getNextAttemptAt(),
+                        operation.getCreatedAt(),
+                        operation.getUpdatedAt(),
+                        operation.getCompletedAt()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
     public List<PaymentIntent> list() {
         return repository.findTop40ByOrderByCreatedAtDesc().stream()
                 .map(PaymentIntentEntity::toDomain).toList();
