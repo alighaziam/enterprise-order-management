@@ -22,6 +22,17 @@ The payment backlog metric is:
     eom_payment_operations{status="succeeded"}
     eom_payment_operations{status="failed"}
 
+The age metric is also exported for the actionable queue states:
+
+    eom_payment_operations_oldest_age_seconds{status="pending"}
+    eom_payment_operations_oldest_age_seconds{status="unknown"}
+    eom_payment_operations_oldest_age_seconds{status="reconciling"}
+
+Age is measured from the last transition into the current status (the
+persisted `updated_at` timestamp); a zero value means that no operation is
+currently in that status. The age gauges perform one indexed/minimum timestamp
+lookup per tracked status when scraped.
+
 The `status` label is an enum with a fixed, bounded set of values. Payment IDs,
 customer IDs, provider references, idempotency keys, and error messages are
 never metric labels.
@@ -45,6 +56,9 @@ token and 403 when the token lacks the required scope. Monitor Prometheus
 | Alert | Default condition | Meaning |
 |---|---|---|
 | `PaymentOperationOutcomeUnknown` | UNKNOWN > 0 for 5m | Provider outcome is ambiguous; operator reconciliation is required. |
+| `PaymentOperationPendingTooOld` | oldest PENDING age > 5m for 5m | A command is not being picked up or completed promptly. |
+| `PaymentOperationUnknownTooOld` | oldest UNKNOWN age > 5m for 5m | A provider outcome remains unresolved; verify it before taking action. |
+| `PaymentOperationReconciliationTooOld` | oldest RECONCILING age > 10m for 5m | A reconciliation claim is not completing normally. |
 | `PaymentOperationPendingBacklog` | PENDING > 25 for 10m | Work is accumulating faster than workers complete it, or workers are unavailable. |
 | `PaymentOperationReconciliationBacklog` | RECONCILING > 0 for 10m | A reconciliation claim is not completing normally. |
 
@@ -60,7 +74,8 @@ durable operation state.
 
 1. Confirm the alert is not caused by a scrape failure; check Prometheus
    `up{job="enterprise-order-management"}`.
-2. Inspect authenticated `/actuator/metrics/eom.payment.operations` or the
+2. Inspect authenticated `/actuator/metrics/eom.payment.operations` and
+   `/actuator/metrics/eom.payment.operations.oldest.age`, or the corresponding
    Prometheus series grouped by `status`.
 3. For UNKNOWN operations, use the payment operations API and provider's
    read-only lookup/reconciliation process. Never blindly resubmit capture,
