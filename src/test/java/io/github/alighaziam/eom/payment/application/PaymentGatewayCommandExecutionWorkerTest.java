@@ -125,7 +125,7 @@ class PaymentGatewayCommandExecutionWorkerTest {
         PaymentGatewayOperationReconciliationService results =
                 mock(PaymentGatewayOperationReconciliationService.class);
         PaymentIntentEntity paymentEntity = mockPaymentEntity(payment);
-        when(claims.claimPendingBatch(20, now)).thenReturn(List.of(operation));
+        when(claims.claimPendingBatch(eq(1), any(Instant.class))).thenReturn(List.of(operation), List.of());
         when(payments.findById(paymentId)).thenReturn(Optional.of(paymentEntity));
         when(results.rejectBeforeSubmission(eq(operation.getId()), eq(workerId),
                 contains("Capture command requires an authorized payment"), any(Instant.class))).thenReturn(true);
@@ -157,7 +157,7 @@ class PaymentGatewayCommandExecutionWorkerTest {
         PaymentGatewayOperationReconciliationService results =
                 mock(PaymentGatewayOperationReconciliationService.class);
         PaymentIntentEntity paymentEntity = mockPaymentEntity(payment);
-        when(claims.claimPendingBatch(20, now)).thenReturn(List.of(operation));
+        when(claims.claimPendingBatch(eq(1), any(Instant.class))).thenReturn(List.of(operation), List.of());
         when(payments.findById(paymentId)).thenReturn(Optional.of(paymentEntity));
         when(gateway.authorize(paymentId, payment.amount(), payment.currency(), "authorize-key"))
                 .thenThrow(new IllegalStateException("secret=do-not-persist"));
