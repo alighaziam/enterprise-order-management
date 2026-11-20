@@ -40,9 +40,16 @@ public class PaymentGatewayReconciliationWorker {
     public int reconcileBatch(Instant now) {
         // Recover abandoned PROCESSING/RECONCILING leases before claiming UNKNOWN work.
         claims.recoverExpiredProcessing(now);
-        List<PaymentGatewayOperationEntity> batch = claims.claimUnknownBatch(BATCH_SIZE, now);
         int completed = 0;
-        for (PaymentGatewayOperationEntity operation : batch) {
+        for (int claimed = 0; claimed < BATCH_SIZE; claimed++) {
+            // Claim just in time so a slow provider lookup cannot consume leases
+            // for operations that are still waiting behind earlier lookups.
+            List<PaymentGatewayOperationEntity> batch =
+                    claims.claimUnknownBatch(1, Instant.now());
+            if (batch.isEmpty()) {
+                break;
+            }
+            PaymentGatewayOperationEntity operation = batch.get(0);
             ProviderOperationLookup lookup;
             try {
                 lookup = gateway.lookup(operation.getOperationType(),

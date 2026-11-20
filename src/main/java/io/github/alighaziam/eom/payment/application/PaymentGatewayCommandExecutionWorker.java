@@ -56,9 +56,16 @@ public class PaymentGatewayCommandExecutionWorker {
 
         // Expired command leases are never returned directly to PENDING or blindly resubmitted.
         claims.recoverExpiredProcessing(now);
-        List<PaymentGatewayOperationEntity> batch = claims.claimPendingBatch(BATCH_SIZE, now);
         int completed = 0;
-        for (PaymentGatewayOperationEntity operation : batch) {
+        for (int claimed = 0; claimed < BATCH_SIZE; claimed++) {
+            // Claim only the next operation immediately before provider I/O.
+            // A large pre-claimed batch would let later items consume their lease while waiting.
+            List<PaymentGatewayOperationEntity> batch =
+                    claims.claimPendingBatch(1, Instant.now());
+            if (batch.isEmpty()) {
+                break;
+            }
+            PaymentGatewayOperationEntity operation = batch.get(0);
             String workerId = operation.getLockedBy();
             try {
                 PaymentIntent payment = payments.findById(operation.getPaymentId())
