@@ -43,18 +43,24 @@ public class PaymentGatewayReconciliationWorker {
         List<PaymentGatewayOperationEntity> batch = claims.claimUnknownBatch(BATCH_SIZE, now);
         int completed = 0;
         for (PaymentGatewayOperationEntity operation : batch) {
+            ProviderOperationLookup lookup;
             try {
-                ProviderOperationLookup lookup = gateway.lookup(operation.getOperationType(),
+                lookup = gateway.lookup(operation.getOperationType(),
                         operation.getIdempotencyKey(), operation.getProviderReference());
-                if (results.apply(operation.getId(), operation.getLockedBy(), lookup, Instant.now())) {
-                    completed++;
-                }
             } catch (RuntimeException lookupFailure) {
                 // Never persist provider exception text: it may contain credentials or raw response data.
                 if (results.markUnknown(operation.getId(), operation.getLockedBy(),
                         "Provider reconciliation lookup failed without a definitive outcome.", Instant.now())) {
                     completed++;
                 }
+                continue;
+            }
+
+            // Keep persistence/reconciliation failures outside the provider-I/O catch.
+            // A database failure must surface to the scheduler/monitoring layer, not be
+            // misclassified as a provider lookup failure or silently converted to UNKNOWN.
+            if (results.apply(operation.getId(), operation.getLockedBy(), lookup, Instant.now())) {
+                completed++;
             }
         }
         return completed;
