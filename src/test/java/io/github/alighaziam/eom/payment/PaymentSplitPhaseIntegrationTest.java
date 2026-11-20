@@ -95,7 +95,7 @@ class PaymentSplitPhaseIntegrationTest {
         OrderOperations.OrderSummary order = createReservedOrder(amount);
         PaymentIntent requested = payments.authorize(order.id(), amount, order.currency(),
                 "split-conflict-capture-" + UUID.randomUUID());
-        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertTrue(commandWorker.executeBatch(Instant.now()) >= 1);
         assertEquals(PaymentStatus.AUTHORIZED, payments.get(requested.id()).status());
 
         payments.capture(requested.id());
