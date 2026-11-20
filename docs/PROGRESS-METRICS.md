@@ -73,3 +73,12 @@ Provider references and status codes now accept only bounded safe identifier tok
 - Added four focused unit tests covering invalid/safe references, sanitization, and lease validation.
 - CI run 44687817044 and CodeQL run 44687817032 both passed on the exact PR head.
 - No overall score increase is claimed. Split-phase command execution remains the next functional release gate.
+
+
+## Latest merged increment — PaymentService split-phase orchestration — 20 November 2026
+
+- PR #45 merged as `1dc3871145bd6ba66649a5dea6129c5e9a9f8cf4` after CI and CodeQL passed on head `2a300e93b7da0d9f9a888a53fe263502773fd81e`. It adds an opt-in persisted command executor for AUTHORIZE/CAPTURE/VOID/REFUND, bounded claims, expired lease recovery, payment-state preconditions, and UNKNOWN handling for ambiguous provider outcomes.
+- PR #46 merged as `dd3e3e35ac7df91c945a9812ec3f9de3c695d1b9` after CI run 44696175727 and CodeQL run 44696175694 both passed on exact head `c7e0a5ebf5ea530a0c277b27a29d984ceb082b6c`.
+- When `app.payment.command-execution.enabled=true`, PaymentService now persists AUTHORIZE/CAPTURE/VOID/REFUND commands and does not perform provider network I/O inside its database transaction. Payment and command persistence share the transaction; successful state transitions and outbox events are applied by the reconciliation service.
+- The feature flag defaults to false, preserving the existing deterministic synchronous sandbox behavior. Local tests were not run; the exact PR head passed the full CI backend/integration tests, frontend syntax, Docker/Compose checks, and CodeQL.
+- This is not live-PSP readiness: provider-specific operation lookup, signed webhook verification, duplicate/replay contract tests, and production-like timeout/recovery validation remain open. No overall progress score increase is claimed; the weighted rubric has not been fully reassessed.
