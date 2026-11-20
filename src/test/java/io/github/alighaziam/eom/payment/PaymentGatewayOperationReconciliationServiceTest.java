@@ -22,6 +22,31 @@ import static org.mockito.Mockito.*;
 class PaymentGatewayOperationReconciliationServiceTest {
 
     @Test
+    void locallyRejectedCommandIsFailedWithoutProviderLookupOrPaymentMutation() {
+        Instant now = Instant.now();
+        PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
+        PaymentGatewayOperationRepository operations = mock(PaymentGatewayOperationRepository.class);
+        PaymentRepository payments = mock(PaymentRepository.class);
+        OutboxOperations outbox = mock(OutboxOperations.class);
+        String workerId = UUID.randomUUID().toString();
+
+        when(operation.ownsLease(workerId, now)).thenReturn(true);
+        when(operations.findByIdForUpdate(any())).thenReturn(Optional.of(operation));
+
+        PaymentGatewayOperationReconciliationService service =
+                new PaymentGatewayOperationReconciliationService(operations, payments, outbox);
+
+        assertTrue(service.rejectBeforeSubmission(UUID.randomUUID(), workerId,
+                "Payment intent is missing; provider command was not submitted.", now));
+
+        verify(operation).failed(
+                "Payment intent is missing; provider command was not submitted.", workerId, now);
+        verify(operation, never()).unknown(anyString(), anyString(), any());
+        verifyNoInteractions(payments, outbox);
+        verify(operations).saveAndFlush(operation);
+    }
+
+    @Test
     void confirmedAuthorizationUpdatesPaymentAndOperationAndPublishesOutboxEvent() {
         Instant now = Instant.now();
         UUID paymentId = UUID.randomUUID();
