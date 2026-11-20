@@ -80,7 +80,7 @@ class PaymentGatewayCommandExecutionWorkerTest {
     }
 
     @Test
-    void missingPaymentIsNotSubmittedAndOperationRemainsUnknown() {
+    void missingPaymentIsRejectedWithoutEnteringUnknownReconciliation() {
         Instant now = Instant.parse("2026-11-20T10:00:00Z");
         UUID paymentId = UUID.randomUUID();
         PaymentGatewayOperationEntity operation =
@@ -94,7 +94,7 @@ class PaymentGatewayCommandExecutionWorkerTest {
                 mock(PaymentGatewayOperationReconciliationService.class);
         when(claims.claimPendingBatch(20, now)).thenReturn(List.of(operation));
         when(payments.findById(paymentId)).thenReturn(Optional.empty());
-        when(results.markUnknown(eq(operation.getId()), eq(workerId), contains("Payment intent is missing"),
+        when(results.rejectBeforeSubmission(eq(operation.getId()), eq(workerId), contains("Payment intent is missing"),
                 any(Instant.class))).thenReturn(true);
 
         PaymentGatewayCommandExecutionWorker worker =
@@ -102,8 +102,9 @@ class PaymentGatewayCommandExecutionWorkerTest {
 
         assertEquals(1, worker.executeBatch(now));
         verifyNoInteractions(gateway);
-        verify(results).markUnknown(eq(operation.getId()), eq(workerId),
+        verify(results).rejectBeforeSubmission(eq(operation.getId()), eq(workerId),
                 eq("Payment intent is missing; provider command was not submitted."), any(Instant.class));
+        verify(results, never()).markUnknown(any(), anyString(), anyString(), any(Instant.class));
     }
 
     @Test
@@ -124,7 +125,7 @@ class PaymentGatewayCommandExecutionWorkerTest {
         PaymentIntentEntity paymentEntity = mockPaymentEntity(payment);
         when(claims.claimPendingBatch(20, now)).thenReturn(List.of(operation));
         when(payments.findById(paymentId)).thenReturn(Optional.of(paymentEntity));
-        when(results.markUnknown(eq(operation.getId()), eq(workerId),
+        when(results.rejectBeforeSubmission(eq(operation.getId()), eq(workerId),
                 contains("Capture command requires an authorized payment"), any(Instant.class))).thenReturn(true);
 
         PaymentGatewayCommandExecutionWorker worker =
@@ -132,9 +133,10 @@ class PaymentGatewayCommandExecutionWorkerTest {
 
         assertEquals(1, worker.executeBatch(now));
         verifyNoInteractions(gateway);
-        verify(results).markUnknown(eq(operation.getId()), eq(workerId),
+        verify(results).rejectBeforeSubmission(eq(operation.getId()), eq(workerId),
                 eq("Capture command requires an authorized payment and provider reference; provider command was not submitted."),
                 any(Instant.class));
+        verify(results, never()).markUnknown(any(), anyString(), anyString(), any(Instant.class));
     }
 
     @Test
