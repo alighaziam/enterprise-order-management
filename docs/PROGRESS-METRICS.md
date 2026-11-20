@@ -90,3 +90,11 @@ Provider references and status codes now accept only bounded safe identifier tok
 - Capture, void, and refund now require explicit stable idempotency keys at the PaymentGateway boundary, matching authorization. The split-phase worker forwards each persisted operation key unchanged; the synchronous sandbox derives stable payment/type keys.
 - Sandbox validation and worker key-propagation regression tests were added. CI backend/integration tests, frontend syntax, Docker/Compose checks, and CodeQL passed.
 - No overall score increase is claimed. A real provider adapter and provider-specific duplicate/replay contract validation remain outstanding.
+
+
+## Split-phase end-to-end verification — 20 November 2026
+
+- PR #48 merged as `00812f554cf3d346ae0f142cf6e12d6b0137b988` after CI run 44697625441 and CodeQL run 44697625424 passed on exact head `63e136a04d5938efcd232ca21a96d1b2348b266f`.
+- Added PostgreSQL-backed end-to-end coverage for AUTHORIZE → CAPTURE → REFUND and a separate AUTHORIZE → VOID flow, explicitly checking PENDING commands before worker execution, final payment states after reconciliation, stable VOID idempotency key, and outbox event order.
+- The integration test uses the deterministic sandbox and delays scheduled execution so command batches are invoked deterministically.
+- No overall progress score increase is claimed; production PSP, signed webhooks, provider lookup and live-environment validation remain release gates.
