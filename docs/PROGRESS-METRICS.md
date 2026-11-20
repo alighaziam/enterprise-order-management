@@ -119,3 +119,12 @@ Provider references and status codes now accept only bounded safe identifier tok
 - Provider exceptions remain UNKNOWN because the provider may have accepted a request before a timeout or transport failure.
 - Added worker and reconciliation-service tests proving locally rejected commands do not call the gateway, mutate payment state, publish outbox events, or enter provider lookup.
 - No overall score increase is claimed; production PSP adapter, authoritative provider lookup, signed webhooks and production-like validation remain open.
+
+
+## Latest merged increment — reconciliation persistence failure boundary — 20 November 2026
+
+- PR #54 merged as `5765d74714f0e5b7b7e99669a671c830cf6a6c9b` from exact head `42d2b81d7ab5741c7dff93df10e403430a00b706`.
+- The provider exception boundary now covers only the read-only gateway lookup. Database/apply failures propagate to the scheduler and are no longer mislabeled as provider lookup failures or converted into UNKNOWN state.
+- Added a regression test proving a persistence failure is surfaced and does not call `markUnknown`.
+- CI run 44713660587 passed backend/integration tests, frontend syntax, and Docker/Compose verification; CodeQL run 44713660055 passed both Java/Kotlin and GitHub Actions analyses on the exact PR head.
+- Real PSP/carrier adapters, signed webhook verification, and production-like provider recovery validation remain open release gates. No overall score increase is claimed without a full six-dimension reassessment.
