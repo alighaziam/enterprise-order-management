@@ -16,7 +16,8 @@ class PaymentOperationMetricsTest {
         when(monitoring.count(PaymentOperationStatus.UNKNOWN)).thenReturn(3L);
         when(monitoring.count(PaymentOperationStatus.PENDING)).thenReturn(7L);
 
-        try (SimpleMeterRegistry registry = new SimpleMeterRegistry()) {
+        SimpleMeterRegistry registry = new SimpleMeterRegistry();
+        try {
             new PaymentOperationMetrics(monitoring, registry);
 
             assertEquals(PaymentOperationStatus.values().length,
@@ -27,6 +28,8 @@ class PaymentOperationMetricsTest {
                     .tag("status", "pending").gauge().value());
             verify(monitoring).count(PaymentOperationStatus.UNKNOWN);
             verify(monitoring).count(PaymentOperationStatus.PENDING);
+        } finally {
+            registry.close();
         }
     }
 }
