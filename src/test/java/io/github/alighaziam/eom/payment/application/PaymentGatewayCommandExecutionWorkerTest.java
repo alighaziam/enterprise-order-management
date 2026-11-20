@@ -121,8 +121,9 @@ class PaymentGatewayCommandExecutionWorkerTest {
         PaymentRepository payments = mock(PaymentRepository.class);
         PaymentGatewayOperationReconciliationService results =
                 mock(PaymentGatewayOperationReconciliationService.class);
+        PaymentIntentEntity paymentEntity = mockPaymentEntity(payment);
         when(claims.claimPendingBatch(20, now)).thenReturn(List.of(operation));
-        when(payments.findById(paymentId)).thenReturn(Optional.of(mockPaymentEntity(payment)));
+        when(payments.findById(paymentId)).thenReturn(Optional.of(paymentEntity));
         when(results.markUnknown(eq(operation.getId()), eq(workerId),
                 contains("incompatible with the current payment state"), any(Instant.class))).thenReturn(true);
 
@@ -151,8 +152,9 @@ class PaymentGatewayCommandExecutionWorkerTest {
         PaymentRepository payments = mock(PaymentRepository.class);
         PaymentGatewayOperationReconciliationService results =
                 mock(PaymentGatewayOperationReconciliationService.class);
+        PaymentIntentEntity paymentEntity = mockPaymentEntity(payment);
         when(claims.claimPendingBatch(20, now)).thenReturn(List.of(operation));
-        when(payments.findById(paymentId)).thenReturn(Optional.of(mockPaymentEntity(payment)));
+        when(payments.findById(paymentId)).thenReturn(Optional.of(paymentEntity));
         when(gateway.authorize(paymentId, payment.amount(), payment.currency(), "authorize-key"))
                 .thenThrow(new IllegalStateException("secret=do-not-persist"));
         when(results.markUnknown(eq(operation.getId()), eq(workerId),
