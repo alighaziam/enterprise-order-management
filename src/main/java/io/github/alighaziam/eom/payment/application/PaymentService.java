@@ -4,6 +4,7 @@ import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
 import io.github.alighaziam.eom.payment.PaymentIntent;
+import io.github.alighaziam.eom.payment.PaymentOperationView;
 import io.github.alighaziam.eom.payment.PaymentOperationStatus;
 import io.github.alighaziam.eom.payment.PaymentOperationType;
 import io.github.alighaziam.eom.payment.PaymentOperations;
