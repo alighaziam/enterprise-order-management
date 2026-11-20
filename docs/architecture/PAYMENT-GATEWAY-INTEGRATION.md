@@ -51,6 +51,18 @@ If the local payment state is incompatible with a provider-confirmed final resul
 
 The worker is dormant in the current repository because no provider lookup adapter is installed. The deterministic sandbox remains the only active payment adapter, and its synchronous behavior is unchanged.
 
+## PaymentService split-phase orchestration
+
+The opt-in `app.payment.command-execution.enabled=true` flag now switches all four PaymentService lifecycle entry points to persisted commands:
+
+- Authorization commits a REQUESTED payment and a PENDING AUTHORIZE operation together, then returns without provider network I/O.
+- Capture and void persist their command while leaving the payment AUTHORIZED until a confirmed result is applied.
+- Refund transitions the payment to REFUND_PENDING and persists its REFUND command in the same transaction.
+- Repeated lifecycle calls reuse the existing payment/type operation; authorization replay returns the existing REQUESTED payment. A previously FAILED lifecycle command requires manual review rather than silent resubmission.
+- Each operation stores a SHA-256 request fingerprint and stable idempotency key. The command worker claims after commit, performs provider I/O outside the transaction, then applies the outcome through the lease-guarded reconciliation service; successful state changes and outbox events commit together.
+
+The flag defaults to false to preserve the existing deterministic synchronous sandbox behavior. Enabling it activates both persisted command creation and the opt-in worker. The worker startup delay is configurable with `app.payment.command-execution.initial-delay` (default PT1S). Do not enable this mode for a live PSP until a real provider adapter, signed webhook verification, and authoritative operation lookup are available. In particular, UNKNOWN outcomes must remain under reconciliation/manual investigation and must never be blindly resubmitted.
+
 ## Persisted command execution worker
 
 A dormant command executor now claims due `PENDING` operations in bounded batches, recovers expired processing leases before claiming, loads the associated payment snapshot, and dispatches AUTHORIZE/CAPTURE/VOID/REFUND through the provider-neutral `PaymentGateway` port. The claim transaction completes before provider I/O; the normalized success is applied through the existing short-transaction reconciliation service. Any exception is treated as an unknown outcome and never persisted verbatim or blindly retried.
