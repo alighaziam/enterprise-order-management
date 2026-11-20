@@ -14,6 +14,45 @@ groups:
             for at least five minutes. Inspect the payment operation queue
             and reconcile with the provider before any manual retry.
 
+      - alert: PaymentOperationPendingTooOld
+        expr: eom_payment_operations_oldest_age_seconds{status="pending"} > 300
+        for: 5m
+        labels:
+          severity: warning
+          service: enterprise-order-management
+        annotations:
+          summary: A payment command has remained pending too long
+          description: >-
+            The oldest pending payment operation is more than five minutes old.
+            Check command worker scheduling, provider adapter availability,
+            database health, and queue throughput.
+
+      - alert: PaymentOperationUnknownTooOld
+        expr: eom_payment_operations_oldest_age_seconds{status="unknown"} > 300
+        for: 5m
+        labels:
+          severity: critical
+          service: enterprise-order-management
+        annotations:
+          summary: A payment outcome has remained unknown too long
+          description: >-
+            The oldest unknown payment operation has remained unresolved for
+            more than five minutes. Verify the provider outcome before any
+            operator action; do not blindly resubmit the financial command.
+
+      - alert: PaymentOperationReconciliationTooOld
+        expr: eom_payment_operations_oldest_age_seconds{status="reconciling"} > 600
+        for: 5m
+        labels:
+          severity: warning
+          service: enterprise-order-management
+        annotations:
+          summary: Payment reconciliation has exceeded its expected duration
+          description: >-
+            The oldest reconciliation claim is more than ten minutes old.
+            Inspect worker lease recovery, provider lookup latency, and
+            persistence errors.
+
       - alert: PaymentOperationPendingBacklog
         expr: sum(eom_payment_operations{status="pending"}) > 25
         for: 10m
