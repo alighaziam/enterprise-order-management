@@ -1,0 +1,41 @@
+groups:
+  - name: enterprise-order-management-payment-operations
+    rules:
+      - alert: PaymentOperationOutcomeUnknown
+        expr: sum(eom_payment_operations{status="unknown"}) > 0
+        for: 5m
+        labels:
+          severity: critical
+          service: enterprise-order-management
+        annotations:
+          summary: Payment operation outcome requires reconciliation
+          description: >-
+            One or more payment operations have an unknown provider outcome
+            for at least five minutes. Inspect the payment operation queue
+            and reconcile with the provider before any manual retry.
+
+      - alert: PaymentOperationPendingBacklog
+        expr: sum(eom_payment_operations{status="pending"}) > 25
+        for: 10m
+        labels:
+          severity: warning
+          service: enterprise-order-management
+        annotations:
+          summary: Payment operation pending backlog is growing
+          description: >-
+            More than 25 payment operations have remained pending for ten
+            minutes. Check worker availability, provider latency, database
+            health, and configured batch capacity.
+
+      - alert: PaymentOperationReconciliationBacklog
+        expr: sum(eom_payment_operations{status="reconciling"}) > 0
+        for: 10m
+        labels:
+          severity: warning
+          service: enterprise-order-management
+        annotations:
+          summary: Payment operation reconciliation is taking too long
+          description: >-
+            At least one payment operation has remained in reconciliation
+            for ten minutes. Check worker leases, provider lookup health,
+            and persistence errors.
