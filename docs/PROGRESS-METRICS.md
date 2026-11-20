@@ -82,3 +82,11 @@ Provider references and status codes now accept only bounded safe identifier tok
 - When `app.payment.command-execution.enabled=true`, PaymentService now persists AUTHORIZE/CAPTURE/VOID/REFUND commands and does not perform provider network I/O inside its database transaction. Payment and command persistence share the transaction; successful state transitions and outbox events are applied by the reconciliation service.
 - The feature flag defaults to false, preserving the existing deterministic synchronous sandbox behavior. Local tests were not run; the exact PR head passed the full CI backend/integration tests, frontend syntax, Docker/Compose checks, and CodeQL.
 - This is not live-PSP readiness: provider-specific operation lookup, signed webhook verification, duplicate/replay contract tests, and production-like timeout/recovery validation remain open. No overall progress score increase is claimed; the weighted rubric has not been fully reassessed.
+
+
+## Latest merged increment — provider operation idempotency contract — 20 November 2026
+
+- PR #47 merged as `c42d671a4db7760cd49261dcda25b06bad07bc67` after CI run 44696940899 and CodeQL run 44696940862 passed on exact head `fb1e6bb3eb8b3bbd2c1aee1eb02f576ff5078d47`.
+- Capture, void, and refund now require explicit stable idempotency keys at the PaymentGateway boundary, matching authorization. The split-phase worker forwards each persisted operation key unchanged; the synchronous sandbox derives stable payment/type keys.
+- Sandbox validation and worker key-propagation regression tests were added. CI backend/integration tests, frontend syntax, Docker/Compose checks, and CodeQL passed.
+- No overall score increase is claimed. A real provider adapter and provider-specific duplicate/replay contract validation remain outstanding.
