@@ -88,6 +88,43 @@ class PaymentSplitPhaseIntegrationTest {
         assertEquals(PaymentStatus.VOIDED, payments.get(requested.id()).status());
     }
 
+
+    @Test
+    void captureAndVoidCannotBothBeQueuedForTheSameAuthorizedPayment() {
+        BigDecimal amount = new BigDecimal("21.75");
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
+        PaymentIntent requested = payments.authorize(order.id(), amount, order.currency(),
+                "split-conflict-capture-" + UUID.randomUUID());
+        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertEquals(PaymentStatus.AUTHORIZED, payments.get(requested.id()).status());
+
+        payments.capture(requested.id());
+        assertThrows(IllegalStateException.class, () -> payments.voidAuthorization(requested.id()));
+
+        assertEquals(PaymentOperationStatus.PENDING,
+                operation(requested.id(), PaymentOperationType.CAPTURE).getStatus());
+        assertTrue(operationRepository.findByPaymentIdAndOperationType(requested.id(), PaymentOperationType.VOID)
+                .isEmpty());
+    }
+
+    @Test
+    void voidAndCaptureCannotBothBeQueuedForTheSameAuthorizedPayment() {
+        BigDecimal amount = new BigDecimal("23.25");
+        OrderOperations.OrderSummary order = createReservedOrder(amount);
+        PaymentIntent requested = payments.authorize(order.id(), amount, order.currency(),
+                "split-conflict-void-" + UUID.randomUUID());
+        assertEquals(1, commandWorker.executeBatch(Instant.now()));
+        assertEquals(PaymentStatus.AUTHORIZED, payments.get(requested.id()).status());
+
+        payments.voidAuthorization(requested.id());
+        assertThrows(IllegalStateException.class, () -> payments.capture(requested.id()));
+
+        assertEquals(PaymentOperationStatus.PENDING,
+                operation(requested.id(), PaymentOperationType.VOID).getStatus());
+        assertTrue(operationRepository.findByPaymentIdAndOperationType(requested.id(), PaymentOperationType.CAPTURE)
+                .isEmpty());
+    }
+
     private PaymentGatewayOperationEntity operation(UUID paymentId, PaymentOperationType type) {
         return operationRepository.findByPaymentIdAndOperationType(paymentId, type).orElseThrow();
     }
