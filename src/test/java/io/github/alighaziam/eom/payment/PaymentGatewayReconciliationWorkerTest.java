@@ -32,7 +32,7 @@ class PaymentGatewayReconciliationWorkerTest {
         when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
         when(operation.getIdempotencyKey()).thenReturn("stable-operation-key");
         when(operation.getProviderReference()).thenReturn(null);
-        when(claims.claimUnknownBatch(eq(20), any(Instant.class))).thenReturn(List.of(operation));
+        when(claims.claimUnknownBatch(eq(1), any(Instant.class))).thenReturn(List.of(operation), List.of());
         when(gateway.lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null))
                 .thenReturn(new ProviderOperationLookup(ProviderOperationState.INDETERMINATE,
                         null, "TIMEOUT", Instant.now(), false));
@@ -43,7 +43,7 @@ class PaymentGatewayReconciliationWorkerTest {
 
         assertEquals(1, worker.reconcileBatch(Instant.now()));
         verify(claims).recoverExpiredProcessing(any(Instant.class));
-        verify(claims).claimUnknownBatch(eq(20), any(Instant.class));
+        verify(claims).claimUnknownBatch(eq(1), any(Instant.class));
         verify(gateway).lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null);
         verify(results).apply(eq(operationId), eq(workerId), any(ProviderOperationLookup.class), any(Instant.class));
         verifyNoMoreInteractions(claims);
@@ -63,7 +63,7 @@ class PaymentGatewayReconciliationWorkerTest {
         when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
         when(operation.getIdempotencyKey()).thenReturn("stable-operation-key");
         when(operation.getProviderReference()).thenReturn(null);
-        when(claims.claimUnknownBatch(eq(20), any(Instant.class))).thenReturn(List.of(operation));
+        when(claims.claimUnknownBatch(eq(1), any(Instant.class))).thenReturn(List.of(operation), List.of());
         when(gateway.lookup(PaymentOperationType.AUTHORIZE, "stable-operation-key", null))
                 .thenReturn(new ProviderOperationLookup(ProviderOperationState.SUCCEEDED,
                         "provider-reference", "APPROVED", Instant.now(), false));
@@ -92,7 +92,7 @@ class PaymentGatewayReconciliationWorkerTest {
         when(operation.getOperationType()).thenReturn(PaymentOperationType.REFUND);
         when(operation.getIdempotencyKey()).thenReturn("stable-refund-key");
         when(operation.getProviderReference()).thenReturn("provider-ref");
-        when(claims.claimUnknownBatch(eq(20), any(Instant.class))).thenReturn(List.of(operation));
+        when(claims.claimUnknownBatch(eq(1), any(Instant.class))).thenReturn(List.of(operation), List.of());
         when(gateway.lookup(PaymentOperationType.REFUND, "stable-refund-key", "provider-ref"))
                 .thenThrow(new IllegalStateException("secret=do-not-persist"));
         when(results.markUnknown(eq(operationId), eq(workerId), anyString(), any(Instant.class))).thenReturn(true);
