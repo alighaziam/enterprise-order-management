@@ -107,4 +107,4 @@ Provider references and status codes now accept only bounded safe identifier tok
 - This check runs after the payment row is locked, serializing competing lifecycle requests through the same payment record.
 - Added regression tests for CAPTURE while VOID is unresolved and VOID while CAPTURE is unresolved.
 - PR #50: https://github.com/alighaziam/enterprise-order-management/pull/50
-- CI and CodeQL are pending on exact head `d4cfd1caa2a19ac83bb48bdac2b937541568fe47`; the documentation update is also part of that PR. No score increase is claimed.
+- CI and CodeQL must pass on the final PR head; documentation corrections and PostgreSQL-backed regression coverage are included in this PR. No score increase is claimed.
