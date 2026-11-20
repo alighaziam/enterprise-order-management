@@ -52,6 +52,8 @@ public class PaymentGatewayCommandExecutionWorker {
             throw new IllegalArgumentException("Command execution time is required.");
         }
 
+        // Expired command leases are never returned directly to PENDING or blindly resubmitted.
+        claims.recoverExpiredProcessing(now);
         List<PaymentGatewayOperationEntity> batch = claims.claimPendingBatch(BATCH_SIZE, now);
         int completed = 0;
         for (PaymentGatewayOperationEntity operation : batch) {
