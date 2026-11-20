@@ -89,6 +89,9 @@ public interface PaymentGatewayOperationRepository
 
     Optional<PaymentGatewayOperationEntity> findByIdempotencyKey(String idempotencyKey);
 
+    Optional<PaymentGatewayOperationEntity> findByPaymentIdAndOperationType(UUID paymentId,
+                                                                              io.github.alighaziam.eom.payment.PaymentOperationType operationType);
+
     List<PaymentGatewayOperationEntity> findByPaymentIdOrderByCreatedAtAsc(UUID paymentId);
 
     long countByStatus(PaymentOperationStatus status);

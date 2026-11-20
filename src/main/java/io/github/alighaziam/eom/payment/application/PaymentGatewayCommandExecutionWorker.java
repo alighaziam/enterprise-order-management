@@ -43,7 +43,8 @@ public class PaymentGatewayCommandExecutionWorker {
         this.results = results;
     }
 
-    @Scheduled(fixedDelayString = "${app.payment.command-execution.fixed-delay:PT1S}")
+    @Scheduled(initialDelayString = "${app.payment.command-execution.initial-delay:PT1S}",
+            fixedDelayString = "${app.payment.command-execution.fixed-delay:PT1S}")
     public void executeScheduledBatch() {
         executeBatch(Instant.now());
     }

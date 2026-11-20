@@ -4,10 +4,15 @@ import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
 import io.github.alighaziam.eom.payment.PaymentIntent;
+import io.github.alighaziam.eom.payment.PaymentOperationStatus;
+import io.github.alighaziam.eom.payment.PaymentOperationType;
 import io.github.alighaziam.eom.payment.PaymentOperations;
 import io.github.alighaziam.eom.payment.PaymentStatus;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationEntity;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationRepository;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentIntentEntity;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -16,7 +21,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;
 
@@ -30,15 +39,21 @@ public class PaymentService implements PaymentOperations {
             PaymentStatus.REFUND_PENDING);
 
     private final PaymentRepository repository;
+    private final PaymentGatewayOperationRepository gatewayOperations;
     private final PaymentGateway gateway;
     private final OutboxOperations outbox;
     private final OrderOperations orders;
 
+    @Value("${app.payment.command-execution.enabled:false}")
+    private boolean splitPhaseEnabled;
+
     public PaymentService(PaymentRepository repository,
+                          PaymentGatewayOperationRepository gatewayOperations,
                           PaymentGateway gateway,
                           OutboxOperations outbox,
                           OrderOperations orders) {
         this.repository = repository;
+        this.gatewayOperations = gatewayOperations;
         this.gateway = gateway;
         this.outbox = outbox;
         this.orders = orders;
@@ -63,7 +78,6 @@ public class PaymentService implements PaymentOperations {
             throw new IllegalArgumentException("Payment amount and currency must match the order total.");
         }
 
-        // Another request with this key may have committed while this request waited for the order lock.
         var replayAfterOrderLock = repository.findByIdempotencyKey(idempotencyKey);
         if (replayAfterOrderLock.isPresent()) {
             return validateReplay(replayAfterOrderLock.get(), orderId, amount, currency);
@@ -92,10 +106,15 @@ public class PaymentService implements PaymentOperations {
 
         PaymentIntentEntity entity = repository.findById(paymentId)
                 .orElseThrow(() -> new IllegalStateException("Payment intent reservation was not persisted."));
+
+        if (splitPhaseEnabled) {
+            enqueueOperation(entity, PaymentOperationType.AUTHORIZE, idempotencyKey, now);
+            return entity.toDomain();
+        }
+
         String providerReference = gateway.authorize(paymentId, amount, currency, idempotencyKey);
         entity.authorized(providerReference, Instant.now());
         PaymentIntentEntity saved = repository.saveAndFlush(entity);
-
         outbox.append("PaymentAuthorized", "PaymentIntent", paymentId.toString(), 1,
                 orderId.toString(), null, "{\"paymentId\":\"" + paymentId + "\"}");
         return saved.toDomain();
@@ -106,11 +125,16 @@ public class PaymentService implements PaymentOperations {
     public PaymentIntent capture(UUID id) {
         PaymentIntentEntity entity = findForUpdate(id);
         PaymentIntent payment = entity.toDomain();
-        if (payment.status() == PaymentStatus.CAPTURED) {
-            return payment;
-        }
+        if (payment.status() == PaymentStatus.CAPTURED) return payment;
         if (payment.status() != PaymentStatus.AUTHORIZED) {
             throw new IllegalStateException("Only authorized payments can be captured.");
+        }
+
+        if (splitPhaseEnabled) {
+            if (hasExistingOperation(id, PaymentOperationType.CAPTURE)) return entity.toDomain();
+            enqueueOperation(entity, PaymentOperationType.CAPTURE, operationKey(id, PaymentOperationType.CAPTURE),
+                    Instant.now());
+            return entity.toDomain();
         }
 
         gateway.capture(payment.providerReference());
@@ -125,11 +149,16 @@ public class PaymentService implements PaymentOperations {
     public PaymentIntent voidAuthorization(UUID id) {
         PaymentIntentEntity entity = findForUpdate(id);
         PaymentIntent payment = entity.toDomain();
-        if (payment.status() == PaymentStatus.VOIDED) {
-            return payment;
-        }
+        if (payment.status() == PaymentStatus.VOIDED) return payment;
         if (payment.status() != PaymentStatus.AUTHORIZED) {
             throw new IllegalStateException("Only authorized payments can be voided.");
+        }
+
+        if (splitPhaseEnabled) {
+            if (hasExistingOperation(id, PaymentOperationType.VOID)) return entity.toDomain();
+            enqueueOperation(entity, PaymentOperationType.VOID, operationKey(id, PaymentOperationType.VOID),
+                    Instant.now());
+            return entity.toDomain();
         }
 
         gateway.voidAuthorization(payment.providerReference());
@@ -144,13 +173,23 @@ public class PaymentService implements PaymentOperations {
     public PaymentIntent refund(UUID id) {
         PaymentIntentEntity entity = findForUpdate(id);
         PaymentIntent payment = entity.toDomain();
-        if (payment.status() == PaymentStatus.REFUNDED) {
-            return payment;
+        if (payment.status() == PaymentStatus.REFUNDED) return payment;
+
+        if (splitPhaseEnabled) {
+            if (payment.status() == PaymentStatus.REFUND_PENDING
+                    && hasExistingOperation(id, PaymentOperationType.REFUND)) return entity.toDomain();
+            if (payment.status() != PaymentStatus.CAPTURED) {
+                throw new IllegalStateException("Only captured payments can be refunded.");
+            }
+            Instant now = Instant.now();
+            entity.status(PaymentStatus.REFUND_PENDING, now);
+            enqueueOperation(entity, PaymentOperationType.REFUND, operationKey(id, PaymentOperationType.REFUND), now);
+            return entity.toDomain();
         }
+
         if (payment.status() != PaymentStatus.CAPTURED) {
             throw new IllegalStateException("Only captured payments can be refunded.");
         }
-
         entity.status(PaymentStatus.REFUND_PENDING, Instant.now());
         gateway.refund(payment.providerReference());
         entity.status(PaymentStatus.REFUNDED, Instant.now());
@@ -180,6 +219,38 @@ public class PaymentService implements PaymentOperations {
                 .map(PaymentIntentEntity::toDomain);
     }
 
+    private void enqueueOperation(PaymentIntentEntity payment, PaymentOperationType type,
+                                  String idempotencyKey, Instant now) {
+        PaymentIntent snapshot = payment.toDomain();
+        String fingerprint = fingerprint(type + "|" + snapshot.id() + "|" + snapshot.amount().toPlainString()
+                + "|" + snapshot.currency() + "|" + String.valueOf(snapshot.providerReference()));
+        gatewayOperations.saveAndFlush(new PaymentGatewayOperationEntity(
+                UUID.randomUUID(), snapshot.id(), type, idempotencyKey, fingerprint, now));
+    }
+
+    private boolean hasExistingOperation(UUID paymentId, PaymentOperationType type) {
+        var existing = gatewayOperations.findByPaymentIdAndOperationType(paymentId, type);
+        if (existing.isEmpty()) return false;
+        PaymentOperationStatus status = existing.get().getStatus();
+        if (status == PaymentOperationStatus.FAILED) {
+            throw new IllegalStateException("A previous payment operation failed; manual review is required.");
+        }
+        return true;
+    }
+
+    private static String operationKey(UUID paymentId, PaymentOperationType type) {
+        return paymentId + ":" + type.name();
+    }
+
+    private static String fingerprint(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable.", impossible);
+        }
+    }
+
     private static void validateAuthorizationRequest(UUID orderId, BigDecimal amount,
                                                      String currency, String idempotencyKey) {
         if (orderId == null || amount == null || amount.signum() <= 0
@@ -204,7 +275,7 @@ public class PaymentService implements PaymentOperations {
                 || !previous.currency().equals(currency)) {
             throw new IllegalStateException("Idempotency key reused with different payment details.");
         }
-        if (previous.status() == PaymentStatus.REQUESTED) {
+        if (previous.status() == PaymentStatus.REQUESTED && !splitPhaseEnabled) {
             throw new IllegalStateException("Payment authorization is already being processed.");
         }
         return previous;
