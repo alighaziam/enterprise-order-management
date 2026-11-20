@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -132,7 +133,7 @@ class PaymentGatewayOperationClaimIntegrationTest {
 
     @Test
     void oldestStatusTimestampTracksTheCurrentLifecycleState() {
-        Instant now = Instant.now();
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         PaymentIntentEntity payment = createPayment(now);
         UUID id = UUID.randomUUID();
         repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
@@ -142,7 +143,7 @@ class PaymentGatewayOperationClaimIntegrationTest {
 
             var claimed = claims.claimPendingBatch(10, now).stream()
                     .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
-            Instant unknownAt = now.plusSeconds(5);
+            Instant unknownAt = now.plusSeconds(5).truncatedTo(ChronoUnit.MICROS);
             assertTrue(claims.markUnknown(id, claimed.getLockedBy(), "provider outcome pending", unknownAt));
 
             assertEquals(unknownAt,
