@@ -144,6 +144,30 @@ class PaymentGatewayOperationReconciliationServiceTest {
     }
 
     @Test
+    void providerObservationTooFarInFutureCannotOverwritePaymentState() {
+        Instant now = Instant.now();
+        PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
+        PaymentGatewayOperationRepository operations = mock(PaymentGatewayOperationRepository.class);
+        PaymentRepository payments = mock(PaymentRepository.class);
+        OutboxOperations outbox = mock(OutboxOperations.class);
+        String workerId = UUID.randomUUID().toString();
+
+        when(operation.ownsLease(workerId, now)).thenReturn(true);
+        when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(1));
+        when(operations.findByIdForUpdate(any())).thenReturn(Optional.of(operation));
+
+        PaymentGatewayOperationReconciliationService service =
+                new PaymentGatewayOperationReconciliationService(operations, payments, outbox);
+        ProviderOperationLookup future = new ProviderOperationLookup(
+                ProviderOperationState.SUCCEEDED, "provider-ref", "APPROVED", now.plusSeconds(31), false);
+
+        assertTrue(service.apply(UUID.randomUUID(), workerId, future, now));
+        verify(operation).unknown(contains("invalid future timestamp"), eq(workerId), eq(now));
+        verifyNoInteractions(payments, outbox);
+        verify(operations).saveAndFlush(operation);
+    }
+
+    @Test
     void expiredWorkerLeaseCannotPersistProviderSuccess() {
         Instant now = Instant.now();
         PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
