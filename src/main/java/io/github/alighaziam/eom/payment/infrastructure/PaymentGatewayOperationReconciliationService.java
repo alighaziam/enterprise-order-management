@@ -40,6 +40,15 @@ public class PaymentGatewayOperationReconciliationService {
         PaymentGatewayOperationEntity operation = ownedOperation(operationId, workerId, now);
         if (operation == null) return false;
 
+        // A delayed/stale provider observation must never overwrite a newer operation outcome.
+        if (lookup.observedAt().isBefore(operation.getUpdatedAt())
+                || lookup.observedAt().isAfter(now.plusSeconds(30))) {
+            operation.unknown("Provider reconciliation observation is stale or has an invalid future timestamp; manual verification is required.",
+                    workerId, now);
+            operations.saveAndFlush(operation);
+            return true;
+        }
+
         if (lookup.state() == ProviderOperationState.PENDING
                 || lookup.state() == ProviderOperationState.INDETERMINATE
                 || lookup.state() == ProviderOperationState.NOT_FOUND) {
