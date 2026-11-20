@@ -87,7 +87,7 @@ public class PaymentGatewayOperationEntity {
 
     public void claim(String workerId, Instant leaseUntil, Instant now) {
         if (status != PaymentOperationStatus.PENDING || workerId == null || workerId.isBlank()
-                || leaseUntil == null || !leaseUntil.isAfter(now)) {
+                || leaseUntil == null || now == null || !leaseUntil.isAfter(now)) {
             throw new IllegalStateException("Only a pending operation can be claimed with a valid lease.");
         }
         status = PaymentOperationStatus.PROCESSING;
@@ -98,7 +98,7 @@ public class PaymentGatewayOperationEntity {
     }
 
     public boolean ownsLease(String workerId, Instant now) {
-        return workerId != null && workerId.equals(lockedBy)
+        return workerId != null && now != null && workerId.equals(lockedBy)
                 && lockedUntil != null && lockedUntil.isAfter(now)
                 && (status == PaymentOperationStatus.PROCESSING
                     || status == PaymentOperationStatus.RECONCILING);
@@ -106,6 +106,9 @@ public class PaymentGatewayOperationEntity {
 
     public void succeeded(String reference, String workerId, Instant now) {
         requireLease(workerId, now);
+        if (reference != null && !reference.matches("[A-Za-z0-9][A-Za-z0-9._:-]{0,119}")) {
+            throw new IllegalArgumentException("Provider reference must be a safe identifier token.");
+        }
         status = PaymentOperationStatus.SUCCEEDED;
         providerReference = reference;
         completedAt = now;
@@ -133,7 +136,7 @@ public class PaymentGatewayOperationEntity {
     }
 
     public void markExpiredProcessingUnknown(Instant now) {
-        if (status != PaymentOperationStatus.PROCESSING || lockedUntil == null
+        if (now == null || status != PaymentOperationStatus.PROCESSING || lockedUntil == null
                 || lockedUntil.isAfter(now)) {
             throw new IllegalStateException("Only an expired processing operation can become unknown.");
         }
@@ -162,7 +165,8 @@ public class PaymentGatewayOperationEntity {
 
     private static String sanitize(String error) {
         if (error == null || error.isBlank()) return "Unspecified provider operation error";
-        String normalized = error.replaceAll("[\\r\\n\\t]", " ");
+        String normalized = error.replaceAll("[\\p{Cntrl}]", " ").trim();
+        if (normalized.isBlank()) return "Unspecified provider operation error";
         return normalized.substring(0, Math.min(500, normalized.length()));
     }
 
