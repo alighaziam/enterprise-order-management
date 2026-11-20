@@ -47,3 +47,10 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - Reconciliation now rejects provider observations older than the persisted operation update timestamp or more than 30 seconds ahead of the worker clock.
 - Rejected observations remain UNKNOWN with a sanitized manual-verification reason; no payment state transition or outbox success event is applied.
 - Added regression coverage for stale observations. CI and CodeQL must pass on the PR head before this increment is considered verified.
+
+
+## Latest merged increment — 20 November 2026
+
+- PR #42 merged as `8357cfdd7e43b034914c50f8ea2ea3113713c8d1` after CI and CodeQL passed on head `02fd1c5e3a6b3f897787a52d6af8f1444f76ceae`.
+- Payment reconciliation now rejects provider observations older than the persisted operation update timestamp or more than 30 seconds ahead of the worker clock. Rejected observations remain UNKNOWN with a sanitized manual-verification reason and do not emit a payment-success outbox event.
+- Real payment/carrier adapters, split-phase PSP workflow and production-like recovery/performance validation remain open.
