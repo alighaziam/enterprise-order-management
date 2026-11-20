@@ -78,7 +78,7 @@ The persisted command workflow is now wired through all four `PaymentService` li
 - Provider exceptions and ambiguous outcomes become UNKNOWN; the worker never blindly retries a financial mutation.
 - The feature flag `app.payment.command-execution.enabled` defaults to false, preserving the deterministic synchronous sandbox path. When enabled, it activates command creation and execution together.
 
-The split-phase lifecycle has PostgreSQL-backed integration coverage for AUTHORIZE → CAPTURE → REFUND and AUTHORIZE → VOID, including persisted PENDING commands, final states, stable keys and outbox ordering. The deterministic sandbox is the only configured provider.
+The split-phase lifecycle has PostgreSQL-backed integration coverage for AUTHORIZE → CAPTURE → REFUND and AUTHORIZE → VOID, including persisted PENDING commands, final states, stable keys, outbox ordering and rejection of conflicting CAPTURE/VOID requests. Locally rejected commands are finalized as FAILED before provider submission; ambiguous provider exceptions remain UNKNOWN for reconciliation. The deterministic sandbox is the only configured provider.
 
 ## Remaining requirements before a live PSP
 
