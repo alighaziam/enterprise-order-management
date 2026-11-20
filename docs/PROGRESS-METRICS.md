@@ -40,7 +40,10 @@ Replace deterministic payment and carrier sandboxes with real provider adapters;
 6. Update this file when evidence changes; do not infer progress from commit count.
 
 This is a consistent engineering assessment baseline, not a claim that a single objectively exact percentage exists independent of the scoring rubric.
-\n\n## Latest merged increment — 19 November 2026\n\nProvider references and status codes now accept only bounded safe identifier tokens, preventing free-form/header-like metadata from entering reconciliation records; PR #41 CI and CodeQL passed.\n
+
+## Latest merged increment — 19 November 2026
+
+Provider references and status codes now accept only bounded safe identifier tokens, preventing free-form/header-like metadata from entering reconciliation records; PR #41 CI and CodeQL passed.
 
 ## Development checkpoint — 20 November 2026
 
@@ -48,13 +51,11 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - Rejected observations remain UNKNOWN with a sanitized manual-verification reason; no payment state transition or outbox success event is applied.
 - Added regression coverage for stale observations. CI and CodeQL must pass on the PR head before this increment is considered verified.
 
-
 ## Latest merged increment — 20 November 2026
 
 - PR #42 merged as `8357cfdd7e43b034914c50f8ea2ea3113713c8d1` after CI and CodeQL passed on head `02fd1c5e3a6b3f897787a52d6af8f1444f76ceae`.
 - Payment reconciliation now rejects provider observations older than the persisted operation update timestamp or more than 30 seconds ahead of the worker clock. Rejected observations remain UNKNOWN with a sanitized manual-verification reason and do not emit a payment-success outbox event.
 - Real payment/carrier adapters, split-phase PSP workflow and production-like recovery/performance validation remain open.
-
 
 ## Provider timestamp boundary regression — 20 November 2026
 
@@ -63,3 +64,12 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 - PR #43 merged as `c934e54f13095403c8ea879577294bc0066a6864` after CI (run 44677106961) and CodeQL (run 44677106969) passed on head `3ca2d5f11cb36123eef5c9f05d6b51a12b1c45b1`.
 - The regression proves observations more than 30 seconds ahead remain UNKNOWN without payment mutation or outbox success events.
 - No overall score increase is claimed; the six rubric dimensions have not been fully reassessed.
+
+## Latest merged increment — payment operation persistence hardening — 20 November 2026
+
+- PR #44 merged as `37c7bb986f89265f9493566ed046f154e8be1c14`; PR head was `86f9f7369fce060c8ccc729306b118887f6dc53e`.
+- Persisted payment operations now validate provider references at the entity boundary, rejecting control characters and references longer than 120 characters before changing operation state.
+- Persisted error text now strips all Unicode control characters and remains capped at 500 characters. Lease validation also rejects null timestamps.
+- Added four focused unit tests covering invalid/safe references, sanitization, and lease validation.
+- CI run 44687817044 and CodeQL run 44687817032 both passed on the exact PR head.
+- No overall score increase is claimed. Split-phase command execution remains the next functional release gate.
