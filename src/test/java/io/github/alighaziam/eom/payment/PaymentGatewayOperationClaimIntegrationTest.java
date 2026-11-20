@@ -201,6 +201,42 @@ class PaymentGatewayOperationClaimIntegrationTest {
     }
 
     @Test
+    void staleWorkerCannotCompleteOperationAfterLeaseWasRecoveredAndReclaimed() {
+        Instant now = Instant.now();
+        PaymentIntentEntity payment = createPayment(now);
+        UUID id = UUID.randomUUID();
+        repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
+
+        try {
+            var originalClaim = claims.claimPendingBatch(1, now).stream()
+                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+            String originalWorkerId = originalClaim.getLockedBy();
+
+            assertEquals(1, claims.recoverExpiredProcessing(now.plusSeconds(121)));
+            var reconciliationClaim = claims.claimUnknownBatch(1, now.plusSeconds(152)).stream()
+                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+            String reconciliationWorkerId = reconciliationClaim.getLockedBy();
+
+            assertNotEquals(originalWorkerId, reconciliationWorkerId);
+            assertEquals(PaymentOperationStatus.RECONCILING, reconciliationClaim.getStatus());
+
+            assertFalse(claims.markSucceeded(id, originalWorkerId,
+                    "late-result-from-original-worker", now.plusSeconds(153)));
+
+            var persisted = repository.findById(id).orElseThrow();
+            assertEquals(PaymentOperationStatus.RECONCILING, persisted.getStatus());
+            assertEquals(reconciliationWorkerId, persisted.getLockedBy());
+            assertNull(persisted.getCompletedAt());
+
+            assertTrue(claims.markUnknown(id, reconciliationWorkerId,
+                    "reconciliation remains inconclusive", now.plusSeconds(154)));
+        } finally {
+            repository.deleteById(id);
+            payments.deleteById(payment.toDomain().id());
+        }
+    }
+
+    @Test
     void oldestStatusTimestampTracksTheCurrentLifecycleState() {
         Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         PaymentIntentEntity payment = createPayment(now);
