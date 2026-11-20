@@ -51,6 +51,17 @@ jobs:
           node --check src/main/resources/static/assets/i18n.js
       - name: Verify backend and integration tests
         run: mvn --batch-mode --no-transfer-progress clean verify
+      - name: Validate Prometheus configuration and alert rules
+        run: |
+          mkdir -p /tmp/eom-prometheus-secrets
+          printf 'ci-placeholder' > /tmp/eom-prometheus-secrets/eom-operations-token
+          docker run --rm --entrypoint=/bin/promtool \
+            -v "$PWD/deploy/prometheus:/etc/prometheus:ro" \
+            -v "/tmp/eom-prometheus-secrets:/etc/prometheus/secrets:ro" \
+            prom/prometheus:v3.5.0 check config /etc/prometheus/prometheus.yml
+          docker run --rm --entrypoint=/bin/promtool \
+            -v "$PWD/deploy/prometheus:/etc/prometheus:ro" \
+            prom/prometheus:v3.5.0 check rules /etc/prometheus/payment-alerts.yml
       - name: Verify Docker image and Compose configuration
         run: |
           mkdir -p docker/runtime/java
