@@ -35,7 +35,9 @@ class PaymentGatewayOperationReconciliationServiceTest {
         String workerId = UUID.randomUUID().toString();
 
         when(operation.ownsLease(workerId, now)).thenReturn(true);
+        when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(1));
         when(operation.getPaymentId()).thenReturn(paymentId);
+        when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(1));
         when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
         when(operation.getProviderReference()).thenReturn(null);
         when(operations.findByIdForUpdate(any())).thenReturn(Optional.of(operation));
@@ -101,6 +103,7 @@ class PaymentGatewayOperationReconciliationServiceTest {
         String workerId = UUID.randomUUID().toString();
 
         when(operation.ownsLease(workerId, now)).thenReturn(true);
+        when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(1));
         when(operation.getOperationType()).thenReturn(PaymentOperationType.AUTHORIZE);
         when(operations.findByIdForUpdate(any())).thenReturn(Optional.of(operation));
 
@@ -115,6 +118,31 @@ class PaymentGatewayOperationReconciliationServiceTest {
         verify(operations).saveAndFlush(operation);
     }
 
+
+    @Test
+    void staleProviderObservationCannotOverwriteCurrentPaymentState() {
+        Instant now = Instant.now();
+        PaymentGatewayOperationEntity operation = mock(PaymentGatewayOperationEntity.class);
+        PaymentGatewayOperationRepository operations = mock(PaymentGatewayOperationRepository.class);
+        PaymentRepository payments = mock(PaymentRepository.class);
+        OutboxOperations outbox = mock(OutboxOperations.class);
+        String workerId = UUID.randomUUID().toString();
+
+        when(operation.ownsLease(workerId, now)).thenReturn(true);
+        when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(5));
+        when(operations.findByIdForUpdate(any())).thenReturn(Optional.of(operation));
+
+        PaymentGatewayOperationReconciliationService service =
+                new PaymentGatewayOperationReconciliationService(operations, payments, outbox);
+        ProviderOperationLookup stale = new ProviderOperationLookup(
+                ProviderOperationState.SUCCEEDED, "provider-ref", "APPROVED", now.minusSeconds(10), false);
+
+        assertTrue(service.apply(UUID.randomUUID(), workerId, stale, now));
+        verify(operation).unknown(contains("observation is stale"), eq(workerId), eq(now));
+        verifyNoInteractions(payments, outbox);
+        verify(operations).saveAndFlush(operation);
+    }
+
     @Test
     void expiredWorkerLeaseCannotPersistProviderSuccess() {
         Instant now = Instant.now();
@@ -124,6 +152,7 @@ class PaymentGatewayOperationReconciliationServiceTest {
         OutboxOperations outbox = mock(OutboxOperations.class);
         String workerId = UUID.randomUUID().toString();
         when(operation.ownsLease(workerId, now)).thenReturn(false);
+        when(operation.getUpdatedAt()).thenReturn(now.minusSeconds(1));
         when(operations.findByIdForUpdate(any())).thenReturn(Optional.of(operation));
 
         PaymentGatewayOperationReconciliationService service =
