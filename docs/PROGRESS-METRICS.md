@@ -41,3 +41,9 @@ Replace deterministic payment and carrier sandboxes with real provider adapters;
 
 This is a consistent engineering assessment baseline, not a claim that a single objectively exact percentage exists independent of the scoring rubric.
 \n\n## Latest merged increment — 19 November 2026\n\nProvider references and status codes now accept only bounded safe identifier tokens, preventing free-form/header-like metadata from entering reconciliation records; PR #41 CI and CodeQL passed.\n
+
+## Development checkpoint — 20 November 2026
+
+- Reconciliation now rejects provider observations older than the persisted operation update timestamp or more than 30 seconds ahead of the worker clock.
+- Rejected observations remain UNKNOWN with a sanitized manual-verification reason; no payment state transition or outbox success event is applied.
+- Added regression coverage for stale observations. CI and CodeQL must pass on the PR head before this increment is considered verified.
