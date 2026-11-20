@@ -131,6 +131,41 @@ class PaymentServiceSplitPhaseTest {
         verifyNoInteractions(gateway, outbox);
     }
 
+
+    @Test
+    void captureIsRejectedWhileVoidCommandForSamePaymentIsUnresolved() {
+        UUID paymentId = UUID.randomUUID();
+        Instant now = Instant.now();
+        PaymentIntentEntity entity = authorizedPayment(paymentId, now);
+        when(payments.findByIdForUpdate(paymentId)).thenReturn(Optional.of(entity));
+        when(operations.findByPaymentIdAndOperationType(paymentId, PaymentOperationType.CAPTURE))
+                .thenReturn(Optional.empty());
+        when(operations.existsByPaymentIdAndOperationTypeNotAndStatusIn(
+                eq(paymentId), eq(PaymentOperationType.CAPTURE), anyList())).thenReturn(true);
+
+        assertThrows(IllegalStateException.class, () -> service.capture(paymentId));
+
+        verify(operations, never()).saveAndFlush(any(PaymentGatewayOperationEntity.class));
+        verifyNoInteractions(gateway, outbox);
+    }
+
+    @Test
+    void voidIsRejectedWhileCaptureCommandForSamePaymentIsUnresolved() {
+        UUID paymentId = UUID.randomUUID();
+        Instant now = Instant.now();
+        PaymentIntentEntity entity = authorizedPayment(paymentId, now);
+        when(payments.findByIdForUpdate(paymentId)).thenReturn(Optional.of(entity));
+        when(operations.findByPaymentIdAndOperationType(paymentId, PaymentOperationType.VOID))
+                .thenReturn(Optional.empty());
+        when(operations.existsByPaymentIdAndOperationTypeNotAndStatusIn(
+                eq(paymentId), eq(PaymentOperationType.VOID), anyList())).thenReturn(true);
+
+        assertThrows(IllegalStateException.class, () -> service.voidAuthorization(paymentId));
+
+        verify(operations, never()).saveAndFlush(any(PaymentGatewayOperationEntity.class));
+        verifyNoInteractions(gateway, outbox);
+    }
+
     private static PaymentIntentEntity authorizedPayment(UUID id, Instant now) {
         PaymentIntentEntity entity = new PaymentIntentEntity(id, UUID.randomUUID(),
                 new BigDecimal("27.40"), "EUR", "payment-" + id, null, now);
