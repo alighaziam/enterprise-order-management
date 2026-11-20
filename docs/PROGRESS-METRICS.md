@@ -60,4 +60,6 @@ This is a consistent engineering assessment baseline, not a claim that a single 
 
 - Added a focused regression test proving provider observations more than 30 seconds ahead of the worker clock remain UNKNOWN and cannot mutate payment state or emit outbox events.
 - This verifies the future-timestamp rejection branch alongside the existing stale-observation regression.
-- CI and CodeQL are required on the PR head; no progress-score increase is claimed before those checks pass.
+- PR #43 merged as `c934e54f13095403c8ea879577294bc0066a6864` after CI (run 44677106961) and CodeQL (run 44677106969) passed on head `3ca2d5f11cb36123eef5c9f05d6b51a12b1c45b1`.
+- The regression proves observations more than 30 seconds ahead remain UNKNOWN without payment mutation or outbox success events.
+- No overall score increase is claimed; the six rubric dimensions have not been fully reassessed.
