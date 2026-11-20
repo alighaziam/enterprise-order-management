@@ -100,11 +100,12 @@ Provider references and status codes now accept only bounded safe identifier tok
 - No overall progress score increase is claimed; production PSP, signed webhooks, provider lookup and live-environment validation remain release gates.
 
 
-## Payment command concurrency hardening — PR #50 open — 20 November 2026
+## Latest merged increment — payment command concurrency hardening — 20 November 2026
 
 - Added a repository query to detect other unresolved operations for the same payment, excluding an idempotent replay of the requested operation type.
 - CAPTURE, VOID and REFUND now reject enqueueing when a different operation for that payment is PENDING, PROCESSING, UNKNOWN, RECONCILING or FAILED.
 - This check runs after the payment row is locked, serializing competing lifecycle requests through the same payment record.
 - Added regression tests for CAPTURE while VOID is unresolved and VOID while CAPTURE is unresolved.
-- PR #50: https://github.com/alighaziam/enterprise-order-management/pull/50
-- CI and CodeQL must pass on the final PR head; documentation corrections and PostgreSQL-backed regression coverage are included in this PR. No score increase is claimed.
+- PR #50 merged as `7a3036aa9587e37eada47cbbb492776e18d9c0cb` from exact head `52c41955f90b4212638b41a34f950505596a690b`.
+- CI run 44699527872 and CodeQL run 44699527860 both passed on that exact head. Backend/integration tests, frontend syntax, Docker/Compose and both CodeQL analyses passed.
+- Documentation now reflects the implemented split-phase orchestration and remaining live-PSP gates. No overall score increase is claimed; the six-dimension rubric has not been fully reassessed.
