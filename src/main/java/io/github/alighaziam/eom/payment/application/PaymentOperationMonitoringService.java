@@ -8,9 +8,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 
 @Service
 public class PaymentOperationMonitoringService implements PaymentOperationMonitoring {
+
+    private static final List<PaymentOperationStatus> LEASED_STATUSES =
+            List.of(PaymentOperationStatus.PROCESSING, PaymentOperationStatus.RECONCILING);
 
     private final PaymentGatewayOperationRepository operations;
 
@@ -32,6 +36,12 @@ public class PaymentOperationMonitoringService implements PaymentOperationMonito
         return operations.findOldestUpdatedAtByStatus(status)
                 .map(updatedAt -> Math.max(0L, Duration.between(updatedAt, Instant.now()).getSeconds()))
                 .orElse(0L);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long expiredLeaseCount() {
+        return operations.countByStatusInAndLockedUntilLessThanEqual(LEASED_STATUSES, Instant.now());
     }
 
     private static void requireStatus(PaymentOperationStatus status) {

@@ -102,4 +102,6 @@ public interface PaymentGatewayOperationRepository
 
     @Query("select min(operation.updatedAt) from PaymentGatewayOperationEntity operation where operation.status = :status")
     Optional<Instant> findOldestUpdatedAtByStatus(@Param("status") PaymentOperationStatus status);
+
+    long countByStatusInAndLockedUntilLessThanEqual(List<PaymentOperationStatus> statuses, Instant lockedUntil);
 }

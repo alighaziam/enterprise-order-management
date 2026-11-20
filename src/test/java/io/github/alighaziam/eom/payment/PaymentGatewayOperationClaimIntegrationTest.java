@@ -95,6 +95,33 @@ class PaymentGatewayOperationClaimIntegrationTest {
     }
 
     @Test
+    void expiredLeaseMetricCountsOnlyUnrecoveredProcessingAndReconciliationLeases() {
+        Instant now = Instant.now();
+        PaymentIntentEntity payment = createPayment(now);
+        UUID id = UUID.randomUUID();
+        repository.saveAndFlush(operation(id, payment.toDomain().id(), now));
+
+        try {
+            claims.claimPendingBatch(1, now).stream()
+                    .filter(item -> item.getId().equals(id)).findFirst().orElseThrow();
+
+            var leasedStatuses = java.util.List.of(
+                    PaymentOperationStatus.PROCESSING, PaymentOperationStatus.RECONCILING);
+            assertEquals(0, repository.countByStatusInAndLockedUntilLessThanEqual(
+                    leasedStatuses, now.plusSeconds(119)));
+            assertEquals(1, repository.countByStatusInAndLockedUntilLessThanEqual(
+                    leasedStatuses, now.plusSeconds(121)));
+
+            assertEquals(1, claims.recoverExpiredProcessing(now.plusSeconds(121)));
+            assertEquals(0, repository.countByStatusInAndLockedUntilLessThanEqual(
+                    leasedStatuses, now.plusSeconds(122)));
+        } finally {
+            repository.deleteById(id);
+            payments.deleteById(payment.toDomain().id());
+        }
+    }
+
+    @Test
     void unknownOperationCanBeExclusivelyClaimedForReconciliationAndLeaseExpiryReturnsItToUnknown() {
         Instant now = Instant.now();
         PaymentIntentEntity payment = createPayment(now);

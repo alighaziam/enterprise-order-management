@@ -24,6 +24,12 @@ The payment backlog metric is:
 
 The age metric is also exported for the actionable queue states:
 
+    eom_payment_operations_expired_leases
+
+This gauge counts PROCESSING or RECONCILING operations whose `locked_until`
+timestamp has passed but whose lease-recovery transition has not yet run.
+It should normally return to zero quickly when a worker is healthy.
+
     eom_payment_operations_oldest_age_seconds{status="pending"}
     eom_payment_operations_oldest_age_seconds{status="unknown"}
     eom_payment_operations_oldest_age_seconds{status="reconciling"}
@@ -55,6 +61,7 @@ token and 403 when the token lacks the required scope. Monitor Prometheus
 
 | Alert | Default condition | Meaning |
 |---|---|---|
+| `PaymentOperationExpiredWorkerLease` | expired leases > 0 for 1m | A worker lease expired and recovery has not cleared it. |
 | `PaymentOperationOutcomeUnknown` | UNKNOWN > 0 for 5m | Provider outcome is ambiguous; operator reconciliation is required. |
 | `PaymentOperationPendingTooOld` | oldest PENDING age > 5m for 5m | A command is not being picked up or completed promptly. |
 | `PaymentOperationUnknownTooOld` | oldest UNKNOWN age > 5m for 5m | A provider outcome remains unresolved; verify it before taking action. |
@@ -74,8 +81,9 @@ durable operation state.
 
 1. Confirm the alert is not caused by a scrape failure; check Prometheus
    `up{job="enterprise-order-management"}`.
-2. Inspect authenticated `/actuator/metrics/eom.payment.operations` and
-   `/actuator/metrics/eom.payment.operations.oldest.age`, or the corresponding
+2. Inspect authenticated `/actuator/metrics/eom.payment.operations`,
+   `/actuator/metrics/eom.payment.operations.oldest.age`, and
+   `/actuator/metrics/eom.payment.operations.expired.leases`, or the corresponding
    Prometheus series grouped by `status`.
 3. For UNKNOWN operations, use the payment operations API and provider's
    read-only lookup/reconciliation process. Never blindly resubmit capture,
@@ -83,10 +91,14 @@ durable operation state.
 4. For PENDING growth, check whether the command worker is enabled and healthy,
    whether its provider adapter is available, and whether PostgreSQL is
    accepting writes.
-5. For RECONCILING growth, inspect worker logs and lease recovery. Database
-   persistence failures must be investigated separately from provider lookup
-   failures.
-6. Record the operation/payment identifier only in the restricted operational
+5. For expired worker leases, check whether the command/reconciliation scheduler
+   is running and whether database transactions can complete. Confirm that
+   expired PROCESSING/RECONCILING rows transition to UNKNOWN; never reset them
+   directly to PENDING.
+6. For RECONCILING growth, inspect worker logs and provider lookup latency.
+   Database persistence failures must be investigated separately from provider
+   lookup failures.
+7. Record the operation/payment identifier only in the restricted operational
    ticket or audit system, never as a metric label.
 
 ## Readiness boundary

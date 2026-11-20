@@ -1,6 +1,19 @@
 groups:
   - name: enterprise-order-management-payment-operations
     rules:
+      - alert: PaymentOperationExpiredWorkerLease
+        expr: eom_payment_operations_expired_leases > 0
+        for: 1m
+        labels:
+          severity: warning
+          service: enterprise-order-management
+        annotations:
+          summary: Payment operation worker leases are not being recovered
+          description: >-
+            One or more PROCESSING or RECONCILING operations have expired
+            worker leases. Check worker scheduling, process health, and
+            database availability before attempting manual intervention.
+
       - alert: PaymentOperationOutcomeUnknown
         expr: sum(eom_payment_operations{status="unknown"}) > 0
         for: 5m
