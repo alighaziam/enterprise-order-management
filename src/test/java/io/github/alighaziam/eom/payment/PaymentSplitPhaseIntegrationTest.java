@@ -6,8 +6,8 @@ import io.github.alighaziam.eom.inventory.application.InventoryService;
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.outbox.infrastructure.OutboxRepository;
 import io.github.alighaziam.eom.payment.application.PaymentGatewayCommandExecutionWorker;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationEntity;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationRepository;
-import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -27,7 +27,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class PaymentSplitPhaseIntegrationTest {
 
     @Autowired private PaymentOperations payments;
-    @Autowired private PaymentRepository paymentRepository;
     @Autowired private PaymentGatewayOperationRepository operationRepository;
     @Autowired private PaymentGatewayCommandExecutionWorker commandWorker;
     @Autowired private OutboxRepository outbox;
