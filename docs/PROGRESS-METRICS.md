@@ -138,3 +138,14 @@ Provider references and status codes now accept only bounded safe identifier tok
 - Split-phase payment command execution, idempotency, concurrency guards, and sandbox-backed end-to-end tests are already on main; do not replay those branches as new work.
 - No progress percentage is changed. Live PSP/carrier adapters, provider-side operation lookup, signed webhook/replay protection, and production-like timeout/recovery/load validation remain release gates and require provider credentials or a real integration environment.
 - The hourly PR Guardian now uses explicit repository context and a strict clean-state/check gate; a post-update scheduled run is still pending confirmation in this audit window.
+
+
+## Daily repository audit — 21 November 2026
+
+- Audited default branch `main` after the payment lease regression increment and Guardian policy hardening.
+- PR #62 merged as `391644438ae64a66b9c899dd75de0b894dfe555e`. It adds PostgreSQL integration coverage proving that expired PROCESSING and RECONCILING leases are both counted and recovered to UNKNOWN without blind requeue.
+- The initial PR CI failure was a test-fixture claim bug: the test called `claimPendingBatch` twice, although the first batch had already claimed both fixtures. The test now claims both fixtures from one batch.
+- Exact PR-head CI [run 44888670960](https://github.com/alighaziam/enterprise-order-management/actions/runs/44888670960) and CodeQL [run 44888671016](https://github.com/alighaziam/enterprise-order-management/actions/runs/44888671016) passed before merge.
+- Main CI [run 44888949535](https://github.com/alighaziam/enterprise-order-management/actions/runs/44888949535) and CodeQL [run 44888949636](https://github.com/alighaziam/enterprise-order-management/actions/runs/44888949636) passed on the subsequent main commit containing the merge and Guardian update.
+- The hourly Guardian now requires `reviewDecision == APPROVED`; a null review decision no longer bypasses approval. The main branch currently has no branch-protection flag, so automatic merging will remain blocked until required reviews are configured.
+- No other open PRs or issues were found. No overall progress score is changed; live PSP/carrier integrations and production-like recovery/performance validation remain release gates.
