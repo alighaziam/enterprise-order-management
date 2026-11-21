@@ -105,10 +105,10 @@ class PaymentGatewayOperationClaimIntegrationTest {
         repository.saveAndFlush(operation(reconciliationId, reconciliationPayment.toDomain().id(), now));
 
         try {
-            var processingClaim = claims.claimPendingBatch(10, now).stream()
+            var initialClaims = claims.claimPendingBatch(10, now);
+            var processingClaim = initialClaims.stream()
                     .filter(item -> item.getId().equals(processingId)).findFirst().orElseThrow();
-
-            var reconciliationInitialClaim = claims.claimPendingBatch(10, now).stream()
+            var reconciliationInitialClaim = initialClaims.stream()
                     .filter(item -> item.getId().equals(reconciliationId)).findFirst().orElseThrow();
             assertTrue(claims.markUnknown(reconciliationId, reconciliationInitialClaim.getLockedBy(),
                     "provider outcome requires reconciliation", now.plusSeconds(1)));
