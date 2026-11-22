@@ -61,4 +61,15 @@ class OperatorAuditServiceTest {
                 UUID.randomUUID(), "x".repeat(201), "OUTBOX_REPLAY", "OutboxEvent", "id",
                 "SUCCEEDED", "ok", Instant.now()));
     }
+
+    @Test
+    void rejectsOversizedSearchQueryBeforeQueryingRepository() {
+        OperatorActionRepository repository = mock(OperatorActionRepository.class);
+        OperatorAuditService service = new OperatorAuditService(repository);
+
+        assertThrows(IllegalArgumentException.class, () -> service.search("x".repeat(201), null, 0, 20));
+
+        verifyNoInteractions(repository);
+    }
+
 }
