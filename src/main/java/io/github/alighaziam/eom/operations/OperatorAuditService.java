@@ -34,10 +34,11 @@ public class OperatorAuditService {
         if (normalizedOutcome != null && !normalizedOutcome.matches("SUCCEEDED|FAILED")) {
             throw new IllegalArgumentException("Audit outcome must be SUCCEEDED or FAILED.");
         }
+        Sort stableNewestFirst = Sort.by(Sort.Direction.DESC, "occurredAt")
+                .and(Sort.by(Sort.Direction.DESC, "id"));
         return repository.search(query == null || query.isBlank() ? null : query.trim(),
                         normalizedOutcome,
-                        PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100),
-                                Sort.by(Sort.Direction.DESC, "occurredAt")))
+                        PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), stableNewestFirst))
                 .map(row -> new AuditEntry(row.getId(), row.getActor(), row.getAction(),
                         row.getTargetType(), row.getTargetId(), row.getOutcome(),
                         row.getDetail(), row.getOccurredAt()));
