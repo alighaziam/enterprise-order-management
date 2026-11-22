@@ -22,10 +22,8 @@ class OperatorAuditServiceTest {
     void recordsSanitizedOperatorIdentityAndAction() {
         OperatorActionRepository repository = mock(OperatorActionRepository.class);
         OperatorAuditService service = new OperatorAuditService(repository);
-
         service.record("ops-user" + (char) 10 + "forged", "OUTBOX_REPLAY", "OutboxEvent",
                 UUID.randomUUID().toString(), "SUCCEEDED", "Dead letter requeued.");
-
         var captor = org.mockito.ArgumentCaptor.forClass(OperatorActionEntity.class);
         verify(repository).saveAndFlush(captor.capture());
         assertEquals("ops-user forged", captor.getValue().getActor());
@@ -37,23 +35,20 @@ class OperatorAuditServiceTest {
     void rejectsInvalidOutcomeBeforeQueryingRepository() {
         OperatorActionRepository repository = mock(OperatorActionRepository.class);
         OperatorAuditService service = new OperatorAuditService(repository);
-
-        assertThrows(IllegalArgumentException.class,
-                () -> service.search(null, "UNKNOWN", 0, 20));
+        assertThrows(IllegalArgumentException.class, () -> service.search(null, "UNKNOWN", 0, 20));
         verifyNoInteractions(repository);
     }
 
     @Test
-    void capsPageSizeAndReturnsNewestAuditEntries() {
+    void capsPageSizeAndUsesStableNewestFirstOrdering() {
         OperatorActionRepository repository = mock(OperatorActionRepository.class);
         OperatorAuditService service = new OperatorAuditService(repository);
         when(repository.search(isNull(), isNull(), any(Pageable.class))).thenReturn(new PageImpl<>(List.of()));
-
         service.search(null, null, -1, 500);
-
         verify(repository).search(isNull(), isNull(), argThat((Pageable page) ->
                 page.getPageNumber() == 0 && page.getPageSize() == 100
-                        && page.getSort().getOrderFor("occurredAt").getDirection() == Sort.Direction.DESC));
+                        && page.getSort().getOrderFor("occurredAt").getDirection() == Sort.Direction.DESC
+                        && page.getSort().getOrderFor("id").getDirection() == Sort.Direction.DESC));
     }
 
     @Test
@@ -62,7 +57,6 @@ class OperatorAuditServiceTest {
                 UUID.randomUUID(), "user", "OUTBOX_REPLAY", "OutboxEvent", "id",
                 "SUCCEEDED", "bad" + (char) 0 + "detail", Instant.now());
         assertEquals("bad detail", sanitized.getDetail());
-
         assertThrows(IllegalArgumentException.class, () -> new OperatorActionEntity(
                 UUID.randomUUID(), "x".repeat(201), "OUTBOX_REPLAY", "OutboxEvent", "id",
                 "SUCCEEDED", "ok", Instant.now()));
