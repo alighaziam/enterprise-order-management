@@ -36,7 +36,14 @@ public class OperatorAuditService {
         }
         Sort stableNewestFirst = Sort.by(Sort.Direction.DESC, "occurredAt")
                 .and(Sort.by(Sort.Direction.DESC, "id"));
-        return repository.search(query == null || query.isBlank() ? null : query.trim(),
+        String normalizedQuery = query == null ? null : query.trim();
+        if (normalizedQuery != null && normalizedQuery.length() > 200) {
+            throw new IllegalArgumentException("Audit search query must not exceed 200 characters.");
+        }
+        if (normalizedQuery != null && normalizedQuery.isBlank()) {
+            normalizedQuery = null;
+        }
+        return repository.search(normalizedQuery,
                         normalizedOutcome,
                         PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100), stableNewestFirst))
                 .map(row -> new AuditEntry(row.getId(), row.getActor(), row.getAction(),
