@@ -3,7 +3,6 @@ package io.github.alighaziam.eom.shipping.application;
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
-import io.github.alighaziam.eom.shipping.CarrierGateway;
 import io.github.alighaziam.eom.shipping.DeliveryAddress;
 import io.github.alighaziam.eom.shipping.Shipment;
 import io.github.alighaziam.eom.shipping.ShipmentStatus;
@@ -27,14 +26,12 @@ public class ShippingService implements ShippingOperations {
     private final ShipmentRepository repository;
     private final OutboxOperations outbox;
     private final OrderOperations orders;
-    private final CarrierGateway carrier;
 
     public ShippingService(ShipmentRepository repository, OutboxOperations outbox,
-                           OrderOperations orders, CarrierGateway carrier) {
+                           OrderOperations orders) {
         this.repository = repository;
         this.outbox = outbox;
         this.orders = orders;
-        this.carrier = carrier;
     }
 
     @Override
@@ -61,8 +58,9 @@ public class ShippingService implements ShippingOperations {
 
         Instant now = Instant.now();
         UUID id = UUID.randomUUID();
-        String carrierReference = carrier.createShipmentReference(id, orderId, address);
-        ShipmentEntity entity = repository.save(new ShipmentEntity(id, orderId, address, carrierReference, now));
+        // Persist the shipment request first. The carrier call is executed by a worker
+        // after this transaction commits, using the stable shipment id as idempotency key.
+        ShipmentEntity entity = repository.save(new ShipmentEntity(id, orderId, address, null, now));
         outbox.append("ShipmentCreated", "Shipment", id.toString(), 1,
                 orderId.toString(), null, "{\"shipmentId\":\"" + id + "\"}");
         return entity.toDomain();

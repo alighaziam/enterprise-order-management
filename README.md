@@ -195,3 +195,8 @@ The opt-in payment command mode stores a stable key and request fingerprint for 
 ## Payment operation metrics and alerting
 
 The authenticated Prometheus endpoint exports payment operation backlog gauges. Prometheus scrape configuration, alert rules for UNKNOWN/PENDING/RECONCILING operations, secure token handling, threshold tuning, and the operator response runbook are documented in [Payment metrics and alerts](docs/operations/PAYMENT-METRICS-AND-ALERTS.md). Example configuration files are under `deploy/prometheus/`. The scrape identity requires the `operations.admin` scope; do not expose the endpoint publicly.
+
+
+### Shipping provider boundary
+
+Shipment requests are persisted first and carrier label creation runs asynchronously outside database transactions. See [the split-phase shipping workflow](docs/architecture/shipping-label-workflow.md) for lease, retry, and provider idempotency requirements.

@@ -14,6 +14,7 @@ public class DeterministicSandboxCarrierGateway implements CarrierGateway {
         if (shipmentId == null || orderId == null || destination == null) {
             throw new IllegalArgumentException("Shipment, order, and destination are required.");
         }
+        // shipmentId is the idempotency key: every retry returns the same reference.
         return "sandbox-shipment-" + shipmentId;
     }
 }
