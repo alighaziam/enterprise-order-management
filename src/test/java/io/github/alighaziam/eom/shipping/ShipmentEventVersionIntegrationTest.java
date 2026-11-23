@@ -18,7 +18,10 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-@SpringBootTest
+@SpringBootTest(properties = {
+        "app.shipping.label-worker.initial-delay=PT1H",
+        "app.shipping.label-worker.fixed-delay=PT1H"
+})
 class ShipmentEventVersionIntegrationTest {
 
     @Autowired
@@ -41,6 +44,9 @@ class ShipmentEventVersionIntegrationTest {
 
     @Autowired
     private PaymentOperations payments;
+
+    @Autowired
+    private io.github.alighaziam.eom.shipping.application.ShipmentLabelCreationWorker labelWorker;
 
     @Test
     void shipmentEventsUseStrictlyIncreasingAggregateVersionsAndRequireConfirmedOrders() {
@@ -65,18 +71,23 @@ class ShipmentEventVersionIntegrationTest {
         var shipment = shipping.create(order.id(), destination);
         assertEquals("DE", shipment.destination().countryCode());
 
+        assertEquals(ShipmentStatus.PENDING, shipment.status());
+        assertEquals(null, shipment.carrierReference());
         assertEquals(shipment.id(), shipping.create(order.id(), destination).id());
         assertThrows(IllegalStateException.class, () -> shipping.create(order.id(),
                 new DeliveryAddress("Other Recipient", "Other Street 2", null,
                         "Berlin", "10117", "DE", "+491234567")));
 
-        shipping.updateStatus(shipment.id(), ShipmentStatus.LABEL_CREATED);
+        assertEquals(1, labelWorker.processBatch(java.time.Instant.now()));
+        Shipment labeled = shipping.get(shipment.id());
+        assertEquals(ShipmentStatus.LABEL_CREATED, labeled.status());
+        assertEquals("sandbox-shipment-" + shipment.id(), labeled.carrierReference());
         shipping.updateStatus(shipment.id(), ShipmentStatus.READY_FOR_DISPATCH);
 
         List<OutboxEntity> events = outbox.findByAggregateTypeAndAggregateIdOrderByAggregateVersionAsc(
                 "Shipment", shipment.id().toString());
 
-        assertEquals(List.of("ShipmentCreated", "ShipmentLABEL_CREATED", "ShipmentREADY_FOR_DISPATCH"),
+        assertEquals(List.of("ShipmentCreated", "ShipmentLabelCreated", "ShipmentREADY_FOR_DISPATCH"),
                 events.stream().map(OutboxEntity::getEventType).toList());
         assertEquals(List.of(1L, 2L, 3L),
                 events.stream().map(OutboxEntity::getAggregateVersion).toList());
