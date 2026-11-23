@@ -32,9 +32,9 @@ An expired `PROCESSING` lease is moved to `UNKNOWN`; it is never silently return
 
 ## Provider reconciliation query contract
 
-The application port `PaymentGatewayReconciliation` defines a read-only lookup by operation type and the exact stable idempotency key used for the original command; an existing provider reference may be supplied as a secondary locator. It cannot authorize, capture, void, refund, or resubmit money.
+The application port `PaymentGatewayReconciliation` defines a read-only lookup by operation type and the exact stable idempotency key used for the original command; an existing provider reference may be supplied as a secondary locator. The worker also supplies the expected amount and ISO-4217 currency from the persisted payment intent. The adapter must compare both values with the provider observation before returning a definitive result; a mismatch must never be reported as success. It cannot authorize, capture, void, refund, or resubmit money.
 
-The normalized result distinguishes `SUCCEEDED`, `FAILED`, `PENDING`, `NOT_FOUND`, and `INDETERMINATE`. Provider references and status codes are length-bounded and reject control characters before they can be persisted or logged.
+The normalized result distinguishes `SUCCEEDED`, `FAILED`, `PENDING`, `NOT_FOUND`, and `INDETERMINATE`. Provider references and status codes are length-bounded and reject control characters before they can be persisted or logged. A missing local payment intent prevents the provider lookup entirely and leaves the operation UNKNOWN for investigation.
 
 A `NOT_FOUND` result is **not** automatically permission to retry. The adapter may mark it authoritative only when the PSP contract guarantees that the key was never accepted. Eventual-consistency gaps, timeouts, connection failures, malformed responses, and inconclusive lookups must remain non-authoritative or `INDETERMINATE`. Any future retry must reuse the original idempotency key and be decided by a separate, tested state transition.
 
