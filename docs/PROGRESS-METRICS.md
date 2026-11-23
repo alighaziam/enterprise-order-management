@@ -149,3 +149,37 @@ Provider references and status codes now accept only bounded safe identifier tok
 - Main CI [run 44888949535](https://github.com/alighaziam/enterprise-order-management/actions/runs/44888949535) and CodeQL [run 44888949636](https://github.com/alighaziam/enterprise-order-management/actions/runs/44888949636) passed on the subsequent main commit containing the merge and Guardian update.
 - The hourly Guardian now requires `reviewDecision == APPROVED`; a null review decision no longer bypasses approval. The main branch currently has no branch-protection flag, so automatic merging will remain blocked until required reviews are configured.
 - No other open PRs or issues were found. No overall progress score is changed; live PSP/carrier integrations and production-like recovery/performance validation remain release gates.
+
+
+## Evidence-based reassessment — 23 November 2026
+
+- Assessed default-branch commit: `813ce0683c913ece2e66d856c6f0919f435ffac6`.
+- Overall weighted score: **90.20%** using the unchanged six-dimension rubric above.
+
+| Dimension | Weight | Score | Weighted contribution |
+|---|---:|---:|---:|
+| Product capabilities | 40% | 92% | 36.80 |
+| Tests and code quality | 20% | 96% | 19.20 |
+| CI/CD and build | 15% | 100% | 15.00 |
+| Security | 10% | 85% | 8.50 |
+| Documentation | 5% | 94% | 4.70 |
+| Deployment / production readiness | 10% | 60% | 6.00 |
+| **Total** | **100%** | — | **90.20%** |
+
+### Evidence supporting the reassessment
+
+- Product capabilities: the eight business modules, persisted checkout compensation, transactional outbox/inbox, optional Kafka transport, and split-phase payment command execution are implemented. Payment operation status, idempotency for all provider mutations, conflict guards, stale-observation rejection, reconciliation lease recovery, operational metrics, and searchable operator audit are also present on main. The recent increments include PRs #45–#64; their merged changes are in the assessed commit.
+- Tests and code quality: PostgreSQL-backed integration coverage exercises split-phase AUTHORIZE/CAPTURE/VOID/REFUND paths, concurrent claims, stale workers, expired PROCESSING/RECONCILING leases, and audit input bounds. The exact assessed main commit passed the complete Maven verification workflow.
+- CI/CD and build: main CI [run 45017904601](https://github.com/alighaziam/enterprise-order-management/actions/runs/45017904601) passed Java 25 Maven verification, frontend JavaScript syntax checks, Prometheus configuration and alert-rule validation, Docker image build, and Compose validation. CodeQL [run 45017904542](https://github.com/alighaziam/enterprise-order-management/actions/runs/45017904542) passed both Java/Kotlin and GitHub Actions analyses.
+- Security: OAuth2 resource-server JWT validation, issuer/JWKS validation, stateless API access, per-area scope checks, default-deny unmatched routes, operations-admin restrictions, bounded/sanitized operator audit inputs, and CodeQL are implemented. The score remains below 100 because there is no independent production security assessment and live provider webhook/credential controls are not verified.
+- Documentation: module boundaries, architecture decisions, local end-to-end demo, payment integration contract, operational metrics, alerts, and recovery runbooks are documented and explicitly distinguish sandbox behavior from production integrations.
+- Deployment / production readiness: the application image runs as non-root with a read-only root filesystem, dropped capabilities, a health check, PostgreSQL health-gated Compose startup, and Prometheus alert configuration. The score remains limited because no production environment, disaster-recovery exercise, production load/SLO validation, or live external integration has been verified.
+
+### Remaining release gates — not counted as complete
+
+- Implement and contract-test a real PSP adapter, including signed/deduplicated webhooks and authoritative provider-side operation lookup.
+- Implement and validate a real carrier adapter.
+- Run production-like timeout, recovery, load, backup/restore, and deployment exercises.
+- Complete independent security review and verify production secret rotation, ingress restrictions, and operational ownership.
+
+This score crosses the 90% portfolio target under the existing weighted rubric; it is not a claim that the system is production-ready or that the remaining external integration gates are complete.
