@@ -190,7 +190,8 @@ class PaymentGatewayCommandExecutionWorkerTest {
         PaymentGatewayOperationReconciliationService results =
                 mock(PaymentGatewayOperationReconciliationService.class);
         when(claims.claimPendingBatch(eq(1), any(Instant.class))).thenReturn(List.of(operation), List.of());
-        when(payments.findById(paymentId)).thenReturn(Optional.of(mockPaymentEntity(payment)));
+        PaymentIntentEntity paymentEntity = mockPaymentEntity(payment);
+        when(payments.findById(paymentId)).thenReturn(Optional.of(paymentEntity));
         when(gateway.authorize(paymentId, payment.amount(), payment.currency(), "authorize-key"))
                 .thenReturn("provider-auth-789");
         when(results.apply(eq(operation.getId()), eq(workerId), any(ProviderOperationLookup.class), any(Instant.class)))
