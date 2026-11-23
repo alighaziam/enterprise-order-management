@@ -61,8 +61,9 @@ public class ShippingService implements ShippingOperations {
 
         Instant now = Instant.now();
         UUID id = UUID.randomUUID();
-        String carrierReference = carrier.createShipmentReference(id, orderId, address);
-        ShipmentEntity entity = repository.save(new ShipmentEntity(id, orderId, address, carrierReference, now));
+        // Persist the shipment request first. The carrier call is executed by a worker
+        // after this transaction commits, using the stable shipment id as idempotency key.
+        ShipmentEntity entity = repository.save(new ShipmentEntity(id, orderId, address, null, now));
         outbox.append("ShipmentCreated", "Shipment", id.toString(), 1,
                 orderId.toString(), null, "{\"shipmentId\":\"" + id + "\"}");
         return entity.toDomain();
