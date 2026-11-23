@@ -101,3 +101,10 @@ The orchestration boundary is implemented, but this repository is **not producti
 ## Readiness boundary
 
 The code has a provider-neutral payment command boundary, durable operation and lease state, and a provider-neutral reconciliation contract/worker. The opt-in split-phase command mode is connected to all four PaymentService lifecycle operations; it is not merely an unused executor. The default flag remains false, so the deterministic sandbox uses its legacy synchronous path unless explicitly enabled. The reconciliation contract now receives expected amount and ISO-4217 currency from the persisted payment intent; a real adapter must compare those values with the provider observation before returning a definitive result. This is **not** a live payment gateway connection or production payment processing enablement: no real PSP adapter, authoritative provider lookup bean, signed webhook endpoint, provider credentials, or production provider contract tests are included. A live PSP remains blocked until those provider-specific controls and deployment validations are complete.
+
+
+## Deterministic sandbox reconciliation adapter
+
+The default `app.payment.provider=sandbox` adapter implements both the mutating `PaymentGateway` port and the read-only `PaymentGatewayReconciliation` port. It keeps an in-process operation ledger keyed by the same stable idempotency keys used by the application, validates legal authorize/capture/void/refund transitions, and returns a definitive success only when operation type, provider reference, amount, and currency all match the persisted payment context supplied to lookup.
+
+This ledger is intentionally ephemeral and exists only to exercise the split-phase recovery path without paid PSP credentials. If the application restarts and the in-memory record is absent, lookup returns `INDETERMINATE`, never authoritative `NOT_FOUND`; the operation remains UNKNOWN for manual review. This is a safe mock, not a durable provider integration. A production PSP adapter must query its own durable idempotency store/API and apply the same amount/currency checks.
