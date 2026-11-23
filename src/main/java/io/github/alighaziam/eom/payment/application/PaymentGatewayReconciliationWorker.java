@@ -57,7 +57,8 @@ public class PaymentGatewayReconciliationWorker {
             PaymentGatewayOperationEntity operation = batch.get(0);
 
             // Load the expected financial context from our own system of record.
-            // This read is complete before provider I/O and outside a transaction.
+            // This short repository read completes before provider I/O; it does not hold
+            // the claim transaction or any payment/operation row lock during the network call.
             PaymentIntent payment = payments.findById(operation.getPaymentId())
                     .map(entity -> entity.toDomain())
                     .orElse(null);
