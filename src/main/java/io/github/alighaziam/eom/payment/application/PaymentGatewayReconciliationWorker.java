@@ -1,8 +1,10 @@
 package io.github.alighaziam.eom.payment.application;
 
+import io.github.alighaziam.eom.payment.PaymentIntent;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationClaimService;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationEntity;
 import io.github.alighaziam.eom.payment.infrastructure.PaymentGatewayOperationReconciliationService;
+import io.github.alighaziam.eom.payment.infrastructure.PaymentRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -22,13 +24,16 @@ public class PaymentGatewayReconciliationWorker {
 
     private final PaymentGatewayOperationClaimService claims;
     private final PaymentGatewayReconciliation gateway;
+    private final PaymentRepository payments;
     private final PaymentGatewayOperationReconciliationService results;
 
     public PaymentGatewayReconciliationWorker(PaymentGatewayOperationClaimService claims,
                                               PaymentGatewayReconciliation gateway,
+                                              PaymentRepository payments,
                                               PaymentGatewayOperationReconciliationService results) {
         this.claims = claims;
         this.gateway = gateway;
+        this.payments = payments;
         this.results = results;
     }
 
@@ -50,10 +55,26 @@ public class PaymentGatewayReconciliationWorker {
                 break;
             }
             PaymentGatewayOperationEntity operation = batch.get(0);
+
+            // Load the expected financial context from our own system of record.
+            // This read is complete before provider I/O and outside a transaction.
+            PaymentIntent payment = payments.findById(operation.getPaymentId())
+                    .map(entity -> entity.toDomain())
+                    .orElse(null);
+            if (payment == null) {
+                if (results.markUnknown(operation.getId(), operation.getLockedBy(),
+                        "Payment intent is missing; provider reconciliation lookup was not attempted.",
+                        Instant.now())) {
+                    completed++;
+                }
+                continue;
+            }
+
             ProviderOperationLookup lookup;
             try {
                 lookup = gateway.lookup(operation.getOperationType(),
-                        operation.getIdempotencyKey(), operation.getProviderReference());
+                        operation.getIdempotencyKey(), operation.getProviderReference(),
+                        payment.amount(), payment.currency());
             } catch (RuntimeException lookupFailure) {
                 // Never persist provider exception text: it may contain credentials or raw response data.
                 if (results.markUnknown(operation.getId(), operation.getLockedBy(),
