@@ -49,7 +49,7 @@ When (and only when) a `PaymentGatewayReconciliation` provider bean is installed
 
 If the local payment state is incompatible with a provider-confirmed final result, the operation remains `UNKNOWN` for manual investigation rather than overwriting a potentially newer payment state. A stale worker cannot persist a result after lease expiry.
 
-The worker is dormant in the current repository because no provider lookup adapter is installed. The deterministic sandbox remains the only active payment adapter, and its synchronous behavior is unchanged.
+The reconciliation worker is dormant unless a provider-specific `PaymentGatewayReconciliation` bean is installed. This is separate from the command-execution worker: the opt-in `app.payment.command-execution.enabled=true` mode is already wired through AUTHORIZE, CAPTURE, VOID and REFUND, and the deterministic sandbox can execute those persisted commands after commit. The sandbox does not provide an authoritative read-only operation lookup, so ambiguous outcomes remain UNKNOWN until an actual lookup adapter is supplied. The default feature flag remains false and preserves the synchronous sandbox path.
 
 ## Provider mutation idempotency contract
 
@@ -100,4 +100,4 @@ The orchestration boundary is implemented, but this repository is **not producti
 
 ## Readiness boundary
 
-The code now has a provider-neutral payment command boundary, durable operation and lease state, and a provider-neutral reconciliation contract/worker. This is **not** a live payment gateway connection or production payment processing enablement. The command executor exists but is opt-in and is not yet connected to payment command creation; provider-specific adapter, webhook verification, and conversion of checkout/payment flows to split-phase processing remain required before a live PSP can safely be activated.
+The code has a provider-neutral payment command boundary, durable operation and lease state, and a provider-neutral reconciliation contract/worker. The opt-in split-phase command mode is connected to all four PaymentService lifecycle operations; it is not merely an unused executor. The default flag remains false, so the deterministic sandbox uses its legacy synchronous path unless explicitly enabled. This is **not** a live payment gateway connection or production payment processing enablement: no real PSP adapter, authoritative provider lookup bean, signed webhook endpoint, provider credentials, or production provider contract tests are included. A live PSP remains blocked until those provider-specific controls and deployment validations are complete.
