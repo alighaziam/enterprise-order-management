@@ -42,7 +42,7 @@ class ShipmentLabelCreationWorkerTest {
         when(commands.claimBatch(20, now)).thenReturn(List.of(shipment));
         when(carrier.createShipmentReference(shipmentId, orderId, ADDRESS))
                 .thenReturn("carrier-ref-123");
-        when(commands.markCreated(shipmentId, workerId, "carrier-ref-123", any(Instant.class)))
+        when(commands.markCreated(eq(shipmentId), eq(workerId), eq("carrier-ref-123"), any(Instant.class)))
                 .thenReturn(true);
 
         ShipmentLabelCreationWorker worker = new ShipmentLabelCreationWorker(commands, carrier);
