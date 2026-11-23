@@ -21,7 +21,7 @@ Each module owns its domain and persistence. Cross-module collaboration uses pub
 
 A normal order placement reserves inventory and writes order state plus an `OrderPlaced` outbox event in one PostgreSQL transaction. An order can be confirmed only after a captured payment exists; confirmation consumes all reservations and publishes `OrderConfirmed`. Cancellation is blocked while a payment is active; after it is voided or refunded, cancellation releases reservations and publishes `OrderCancelled`. Manual stock adjustments lock the stock row so they cannot overwrite a concurrent reservation. Repeated confirm/cancel operations are idempotent and order transitions are locked.
 
-The checkout orchestration persists a workflow checkpoint and immutable delivery-address snapshot at each step. Each checkpoint update and its versioned outbox event are committed in the same short PostgreSQL transaction. Important readiness boundary: the current `PaymentService` invokes its gateway synchronously inside a database transaction while payment/order rows are locked. This is limited to the deterministic local sandbox and must not be used with a remote PSP. Before a live PSP is enabled, payment operations must be moved to the persisted split-phase workflow described in [Payment Gateway Integration](docs/architecture/PAYMENT-GATEWAY-INTEGRATION.md). Shipment creation currently writes only to the local sandbox database; no carrier API is called. Workflow state writes use row-level locking so competing recovery workers cannot silently overwrite a newer checkpoint:
+The checkout orchestration persists a workflow checkpoint and immutable delivery-address snapshot at each step. Each checkpoint update and its versioned outbox event are committed in the same short PostgreSQL transaction. Payment has two execution modes: the default deterministic sandbox preserves the legacy synchronous path; setting `app.payment.command-execution.enabled=true` persists AUTHORIZE/CAPTURE/VOID/REFUND commands and lets a worker call the provider after the claim transaction commits, then applies the result in a separate lease-guarded transaction. This split-phase foundation is wired through all four payment lifecycle entry points, but no live PSP adapter or provider lookup implementation is included. Do not connect a remote PSP until authoritative operation lookup, signed webhook/replay protection, provider contract tests and secret management are complete. Shipment creation currently uses only the local sandbox; a real carrier adapter must likewise avoid remote calls inside database transactions. Workflow state writes use row-level locking so competing recovery workers cannot silently overwrite a newer checkpoint:
 
 1. Place order and reserve stock.
 2. Authorize payment using a stable idempotency key.
@@ -137,6 +137,8 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Inventory reservation lifecycle and tests
 - [x] Order lifecycle, snapshots, orchestration, and integration tests
 - [x] Payment module with concurrency-safe idempotent sandbox authorization, capture, void, refund
+- [x] Opt-in persisted split-phase AUTHORIZE/CAPTURE/VOID/REFUND command execution with leases and UNKNOWN outcome handling
+- [x] Payment operation status API, PostgreSQL-backed concurrency/lease recovery tests, backlog/age/expired-lease metrics and Prometheus alerts/runbook
 - [x] Shipping module with address snapshots and guarded state transitions
 - [x] Transactional outbox, leased SKIP LOCKED batch claiming, exponential retry backoff, dead-letter state
 - [x] Inbox deduplication helper and at-least-once delivery documentation
@@ -154,6 +156,7 @@ GitHub Actions runs Maven verification against PostgreSQL 17.
 - [x] Dashboard attention queues and operational counts across filtered result sets
 - [x] Non-root application container with read-only root filesystem and dropped Linux capabilities
 - [x] Operator audit trail for checkout compensation and dead-letter replay, with admin-only searchable history
+- [x] Stable operator audit pagination and bounded search query input
 
 ## Security and WSO2 integration
 
@@ -185,6 +188,8 @@ Copy `.env.example` to `.env`, replace the local database password and WSO2 endp
 Checkout first reserves inventory, creates the order/workflow and appends `CheckoutStarted` in one short database transaction. The workflow's unique idempotency-key constraint is the final concurrency arbiter: a competing request that loses the insert race rolls back its local order and inventory reservation and returns the winner's workflow. Payment authorization/capture and shipment creation execute after the reservation transaction commits. The current payment and carrier adapters are local deterministic sandboxes and make no network calls. A real PSP/carrier adapter must use persisted split-phase commands, provider idempotency keys, and outcome reconciliation so remote calls do not hold database locks.
 
 Each new idempotency key is stored with a SHA-256 fingerprint of the customer, ordered line items and delivery address. Replaying the same key with the same request returns the original workflow; reusing it with a different request returns HTTP 409. Existing workflows migrated with the `legacy` fingerprint retain backward-compatible replay behavior.
+
+The opt-in payment command mode stores a stable key and request fingerprint for every financial operation. The worker claims commands just in time, performs provider I/O outside database transactions, then applies the result in a lease-guarded transaction. Ambiguous provider outcomes become UNKNOWN rather than being blindly resubmitted. The reconciliation worker is activated only when a provider-specific read-only lookup bean is installed; no live PSP is configured in this repository.
 
 
 ## Payment operation metrics and alerting
