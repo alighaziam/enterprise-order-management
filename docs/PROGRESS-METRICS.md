@@ -192,3 +192,44 @@ This score crosses the 90% portfolio target under the existing weighted rubric; 
 - If the local payment intent is missing, the worker skips provider I/O and retains the operation as UNKNOWN for manual investigation.
 - Exact PR-head CI [run 45121212406](https://github.com/alighaziam/enterprise-order-management/actions/runs/45121212406) and CodeQL [run 45121212358](https://github.com/alighaziam/enterprise-order-management/actions/runs/45121212358) passed.
 - This is an additional financial-safety improvement after the 90.20% assessment on commit `813ce0683c913ece2e66d856c6f0919f435ffac6`; no further score increase is claimed until the full rubric is reassessed on the merged main commit. Live PSP/carrier adapters and signed webhook/provider lookup implementations remain release gates.
+
+
+## Evidence-based reassessment — 23 November 2026 (post payment/carrier hardening)
+
+- Assessed default-branch commit: `246d331a108d9ac0280afa789490de5b2f6bf345`.
+- Overall weighted score: **91.60%** using the unchanged six-dimension rubric and weights.
+
+| Dimension | Weight | Score | Weighted contribution |
+|---|---:|---:|---:|
+| Product capabilities | 40% | 94% | 37.60 |
+| Tests and code quality | 20% | 97% | 19.40 |
+| CI/CD and build | 15% | 100% | 15.00 |
+| Security | 10% | 86% | 8.60 |
+| Documentation | 5% | 96% | 4.80 |
+| Deployment / production readiness | 10% | 62% | 6.20 |
+| **Total** | **100%** | — | **91.60%** |
+
+The score rises from 90.20% on the previous assessed commit because the implementation now supplies persisted financial context to provider reconciliation, isolates payment finalization failures from provider errors, enables deterministic sandbox reconciliation, and moves carrier label creation into a leased/retried split-phase worker. Tests cover these boundaries and the PostgreSQL-backed shipping event flow. Security and deployment scores remain deliberately constrained because there is no live PSP/carrier integration or production environment validation.
+
+### Merged increments since the prior assessment
+
+- PR [#67](https://github.com/alighaziam/enterprise-order-management/pull/67): provider reconciliation now receives the expected persisted amount and currency; missing local payment intent prevents provider I/O and stays UNKNOWN. Exact-head CI [45121212406](https://github.com/alighaziam/enterprise-order-management/actions/runs/45121212406) and CodeQL [45121212358](https://github.com/alighaziam/enterprise-order-management/actions/runs/45121212358) passed.
+- PR [#70](https://github.com/alighaziam/enterprise-order-management/pull/70): command-worker exception boundary now covers provider I/O only; database finalization failures propagate instead of being misclassified as provider failures. Exact-head CI [45121826664](https://github.com/alighaziam/enterprise-order-management/actions/runs/45121826664) and CodeQL [45121826710](https://github.com/alighaziam/enterprise-order-management/actions/runs/45121826710) passed.
+- PR [#71](https://github.com/alighaziam/enterprise-order-management/pull/71): deterministic sandbox implements the reconciliation port with idempotent lifecycle state, amount/currency/reference checks, and INDETERMINATE on missing in-memory state. Exact-head CI [45122333000](https://github.com/alighaziam/enterprise-order-management/actions/runs/45122333000) and CodeQL [45122332969](https://github.com/alighaziam/enterprise-order-management/actions/runs/45122332969) passed.
+- PR [#72](https://github.com/alighaziam/enterprise-order-management/pull/72): shipment requests are persisted before carrier I/O; a PostgreSQL lease/claim worker creates labels outside transactions, retries with bounded backoff, and reuses shipment ID as provider idempotency key. Exact-head CI [45123006351](https://github.com/alighaziam/enterprise-order-management/actions/runs/45123006351) and CodeQL [45123006305](https://github.com/alighaziam/enterprise-order-management/actions/runs/45123006305) passed.
+
+### Post-merge verification on the assessed main commit
+
+- Main CI [run 45123213833](https://github.com/alighaziam/enterprise-order-management/actions/runs/45123213833) passed backend/integration tests, Prometheus config/alert validation, and Docker/Compose validation.
+- Main CodeQL [run 45123213881](https://github.com/alighaziam/enterprise-order-management/actions/runs/45123213881) passed Java/Kotlin and GitHub Actions analyses.
+
+### Remaining release gates — not counted as complete
+
+- Real PSP adapter with durable provider-side operation lookup, signed/deduplicated webhooks, and provider contract tests.
+- Real carrier adapter with provider-side idempotency guarantees and authoritative shipment-label lookup/reconciliation. The deterministic carrier is still a sandbox.
+- Sandbox payment reconciliation is intentionally in-memory; after application restart a missing record remains INDETERMINATE. It does not simulate durable external provider state.
+- Production deployment, backup/restore, disaster recovery, load/SLO, failover, and independent security review.
+- Production secret rotation, ingress restrictions, and operational ownership must be validated in a real environment.
+
+This repository remains above the portfolio's 90% target under the agreed weighted rubric. The 91.60% score is not a claim of production readiness or completion of the external integration gates.
+

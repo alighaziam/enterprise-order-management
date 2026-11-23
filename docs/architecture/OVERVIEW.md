@@ -134,3 +134,10 @@ This repository is a portfolio-grade reference implementation, **not a productio
 ## 9. Key decisions
 
 See [ADR-0001](ADR-0001-payment-shipping-outbox-saga.md) for the rationale and compensation matrix.
+
+
+## Split-phase payment and shipping execution
+
+- Payment command execution and provider reconciliation use persisted operations, stable idempotency keys, bounded leases, and explicit UNKNOWN handling. The worker supplies the persisted payment amount and currency to the provider lookup port; the deterministic sandbox adapter implements the lookup contract in-memory and never treats missing state after restart as authoritative NOT_FOUND.
+- Shipment creation persists a PENDING shipment and outbox event. Carrier label creation runs in a separate leased worker outside the database transaction, with bounded retries and a stable shipment-ID idempotency key. See [shipping label workflow](shipping-label-workflow.md).
+- Both adapters remain deterministic sandboxes. Production PSP/carrier implementations must supply durable provider-side idempotency and lookup/reconciliation contracts.
