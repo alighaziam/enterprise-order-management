@@ -149,3 +149,45 @@ Provider references and status codes now accept only bounded safe identifier tok
 - Main CI [run 44888949535](https://github.com/alighaziam/enterprise-order-management/actions/runs/44888949535) and CodeQL [run 44888949636](https://github.com/alighaziam/enterprise-order-management/actions/runs/44888949636) passed on the subsequent main commit containing the merge and Guardian update.
 - The hourly Guardian now requires `reviewDecision == APPROVED`; a null review decision no longer bypasses approval. The main branch currently has no branch-protection flag, so automatic merging will remain blocked until required reviews are configured.
 - No other open PRs or issues were found. No overall progress score is changed; live PSP/carrier integrations and production-like recovery/performance validation remain release gates.
+
+
+## Evidence-based reassessment — 23 November 2026
+
+- Assessed main commit: `813ce0683c913ece2e66d856c6f0919f435ffac6`.
+- Overall weighted score: **90.35%** under the unchanged six-dimension rubric.
+
+| Dimension | Weight | Score | Weighted contribution |
+|---|---:|---:|---:|
+| Product capabilities | 40% | 92% | 36.80 |
+| Tests and code quality | 20% | 95% | 19.00 |
+| CI/CD and build | 15% | 100% | 15.00 |
+| Security | 10% | 85% | 8.50 |
+| Documentation | 5% | 91% | 4.55 |
+| Deployment / production readiness | 10% | 65% | 6.50 |
+| **Total** | **100%** | — | **90.35%** |
+
+The weighted score is a reviewer assessment of the implemented portfolio scope, not a declaration of production payment readiness. Product capability and test scores increased for the persisted split-phase payment lifecycle, status API, idempotency/concurrency protections, lease recovery, operator audit controls, and operational monitoring. Deployment readiness increased for the container hardening, Compose workflow, Prometheus metrics/alerts and response runbooks. Security remains deliberately conservative because no live PSP/carrier, signed provider webhook, provider credential flow or production threat-model validation is present.
+
+### Merged implementation evidence since the 19 November baseline
+
+- PRs #45 and #46: persisted split-phase AUTHORIZE/CAPTURE/VOID/REFUND commands wired through PaymentService; provider I/O occurs after the claim transaction commits.
+- PR #47: stable idempotency keys required for all mutating payment operations.
+- PR #48: PostgreSQL-backed end-to-end AUTHORIZE→CAPTURE→REFUND and AUTHORIZE→VOID lifecycle coverage.
+- PRs #50–#54: conflicting operation guards, pre-submission rejection vs UNKNOWN outcome handling, payment operation status API, concurrency coverage, and correct persistence-failure boundaries.
+- PRs #55–#59: Micrometer backlog/age/expired-lease metrics, Prometheus alert rules/runbook, and just-in-time worker claims.
+- PRs #60–#62: concurrent reconciliation claim tests, stale-worker fencing, and expired-lease metric coverage.
+- PRs #63–#64: deterministic operator audit pagination and bounded audit search input.
+- Main CI [run 45017904601](https://github.com/alighaziam/enterprise-order-management/actions/runs/45017904601) passed on the assessed main commit.
+- CodeQL [run 45017904542](https://github.com/alighaziam/enterprise-order-management/actions/runs/45017904542) passed Java/Kotlin and GitHub Actions analyses on the assessed main commit.
+- Hourly PR Guardian [run 45086392548](https://github.com/alighaziam/enterprise-order-management/actions/runs/45086392548) passed; no open PRs or issues were found in the repository audit.
+
+### Remaining release gates
+
+- Real PSP and carrier adapters with provider-specific idempotency, timeouts, reconciliation and operational contracts.
+- Authoritative provider operation lookup and signed webhook verification with timestamp/replay protection and event deduplication.
+- Production-like provider failure, timeout-after-submit, multi-instance, load/soak and disaster-recovery validation.
+- Deployment secret rotation, rate limiting, external observability/alert routing and security threat-model review.
+- The reconciliation worker remains dormant until a provider lookup adapter is installed. UNKNOWN payment operations must not be blindly resubmitted.
+- The deterministic sandbox is not a bank/PSP integration and the carrier adapter is not a real carrier connection.
+
+The project meets the 90% portfolio threshold under this rubric, while the listed live-provider and production-environment gates remain explicitly incomplete.
