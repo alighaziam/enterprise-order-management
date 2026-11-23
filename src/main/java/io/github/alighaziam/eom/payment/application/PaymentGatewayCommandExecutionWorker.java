@@ -67,38 +67,43 @@ public class PaymentGatewayCommandExecutionWorker {
             }
             PaymentGatewayOperationEntity operation = batch.get(0);
             String workerId = operation.getLockedBy();
-            try {
-                PaymentIntent payment = payments.findById(operation.getPaymentId())
-                        .map(entity -> entity.toDomain())
-                        .orElse(null);
-                if (payment == null) {
-                    if (results.rejectBeforeSubmission(operation.getId(), workerId,
-                            "Payment intent is missing; provider command was not submitted.", Instant.now())) {
-                        completed++;
-                    }
-                    continue;
-                }
-
-                String preconditionFailure = preconditionFailure(operation, payment);
-                if (preconditionFailure != null) {
-                    if (results.rejectBeforeSubmission(operation.getId(), workerId, preconditionFailure, Instant.now())) {
-                        completed++;
-                    }
-                    continue;
-                }
-
-                String providerReference = execute(operation, payment);
-                ProviderOperationLookup observation = new ProviderOperationLookup(
-                        ProviderOperationState.SUCCEEDED, providerReference, "EXECUTED", Instant.now(), false);
-                if (results.apply(operation.getId(), workerId, observation, Instant.now())) {
+            PaymentIntent payment = payments.findById(operation.getPaymentId())
+                    .map(entity -> entity.toDomain())
+                    .orElse(null);
+            if (payment == null) {
+                if (results.rejectBeforeSubmission(operation.getId(), workerId,
+                        "Payment intent is missing; provider command was not submitted.", Instant.now())) {
                     completed++;
                 }
+                continue;
+            }
+
+            String preconditionFailure = preconditionFailure(operation, payment);
+            if (preconditionFailure != null) {
+                if (results.rejectBeforeSubmission(operation.getId(), workerId, preconditionFailure, Instant.now())) {
+                    completed++;
+                }
+                continue;
+            }
+
+            // Only provider I/O belongs in this catch. Finalization is a separate
+            // database transaction; persistence failures must reach the scheduler.
+            String providerReference;
+            try {
+                providerReference = execute(operation, payment);
             } catch (RuntimeException executionFailure) {
                 // A timeout may occur after the provider accepted the command. Never mark it failed or retry blindly.
                 if (results.markUnknown(operation.getId(), workerId,
                         "Provider command execution ended without a definitive outcome.", Instant.now())) {
                     completed++;
                 }
+                continue;
+            }
+
+            ProviderOperationLookup observation = new ProviderOperationLookup(
+                    ProviderOperationState.SUCCEEDED, providerReference, "EXECUTED", Instant.now(), false);
+            if (results.apply(operation.getId(), workerId, observation, Instant.now())) {
+                completed++;
             }
         }
         return completed;
