@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
@@ -172,6 +172,37 @@ class PaymentGatewayCommandExecutionWorkerTest {
                 eq("Provider command execution ended without a definitive outcome."), any(Instant.class));
         verify(gateway).authorize(paymentId, payment.amount(), payment.currency(), "authorize-key");
         verifyNoMoreInteractions(gateway);
+    }
+
+    @Test
+    void finalizationPersistenceFailureIsNotMisclassifiedAsProviderFailure() {
+        Instant now = Instant.parse("2026-11-20T10:00:00Z");
+        UUID paymentId = UUID.randomUUID();
+        PaymentIntent payment = payment(paymentId, new BigDecimal("18.50"),
+                PaymentStatus.REQUESTED, null, now);
+        PaymentGatewayOperationEntity operation =
+                operation(paymentId, PaymentOperationType.AUTHORIZE, "authorize-key");
+        String workerId = operation.getLockedBy();
+
+        PaymentGatewayOperationClaimService claims = mock(PaymentGatewayOperationClaimService.class);
+        PaymentGateway gateway = mock(PaymentGateway.class);
+        PaymentRepository payments = mock(PaymentRepository.class);
+        PaymentGatewayOperationReconciliationService results =
+                mock(PaymentGatewayOperationReconciliationService.class);
+        when(claims.claimPendingBatch(eq(1), any(Instant.class))).thenReturn(List.of(operation), List.of());
+        PaymentIntentEntity paymentEntity = mockPaymentEntity(payment);
+        when(payments.findById(paymentId)).thenReturn(Optional.of(paymentEntity));
+        when(gateway.authorize(paymentId, payment.amount(), payment.currency(), "authorize-key"))
+                .thenReturn("provider-auth-789");
+        when(results.apply(eq(operation.getId()), eq(workerId), any(ProviderOperationLookup.class), any(Instant.class)))
+                .thenThrow(new IllegalStateException("database unavailable"));
+
+        PaymentGatewayCommandExecutionWorker worker =
+                new PaymentGatewayCommandExecutionWorker(claims, gateway, payments, results);
+
+        assertThrows(IllegalStateException.class, () -> worker.executeBatch(now));
+        verify(gateway).authorize(paymentId, payment.amount(), payment.currency(), "authorize-key");
+        verify(results, never()).markUnknown(any(), anyString(), anyString(), any(Instant.class));
     }
 
     private static PaymentIntent payment(UUID id, BigDecimal amount, PaymentStatus status,
