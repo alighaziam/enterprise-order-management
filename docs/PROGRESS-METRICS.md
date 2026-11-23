@@ -183,3 +183,12 @@ Provider references and status codes now accept only bounded safe identifier tok
 - Complete independent security review and verify production secret rotation, ingress restrictions, and operational ownership.
 
 This score crosses the 90% portfolio target under the existing weighted rubric; it is not a claim that the system is production-ready or that the remaining external integration gates are complete.
+
+
+## Post-assessment safety increment — 23 November 2026
+
+- PR #67 merged as `c452632fa7ee33a348f7af309cdaa426e153ac74`.
+- Provider reconciliation now receives the exact expected amount and ISO-4217 currency from the persisted payment intent, so a real provider adapter can compare the provider-side financial observation against the system of record before returning a definitive result.
+- If the local payment intent is missing, the worker skips provider I/O and retains the operation as UNKNOWN for manual investigation.
+- Exact PR-head CI [run 45121212406](https://github.com/alighaziam/enterprise-order-management/actions/runs/45121212406) and CodeQL [run 45121212358](https://github.com/alighaziam/enterprise-order-management/actions/runs/45121212358) passed.
+- This is an additional financial-safety improvement after the 90.20% assessment on commit `813ce0683c913ece2e66d856c6f0919f435ffac6`; no further score increase is claimed until the full rubric is reassessed on the merged main commit. Live PSP/carrier adapters and signed webhook/provider lookup implementations remain release gates.
