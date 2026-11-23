@@ -3,7 +3,6 @@ package io.github.alighaziam.eom.shipping.application;
 import io.github.alighaziam.eom.order.OrderOperations;
 import io.github.alighaziam.eom.order.OrderState;
 import io.github.alighaziam.eom.outbox.OutboxOperations;
-import io.github.alighaziam.eom.shipping.CarrierGateway;
 import io.github.alighaziam.eom.shipping.DeliveryAddress;
 import io.github.alighaziam.eom.shipping.Shipment;
 import io.github.alighaziam.eom.shipping.ShipmentStatus;
@@ -27,14 +26,12 @@ public class ShippingService implements ShippingOperations {
     private final ShipmentRepository repository;
     private final OutboxOperations outbox;
     private final OrderOperations orders;
-    private final CarrierGateway carrier;
 
     public ShippingService(ShipmentRepository repository, OutboxOperations outbox,
-                           OrderOperations orders, CarrierGateway carrier) {
+                           OrderOperations orders) {
         this.repository = repository;
         this.outbox = outbox;
         this.orders = orders;
-        this.carrier = carrier;
     }
 
     @Override
